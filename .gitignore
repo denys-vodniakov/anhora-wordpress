@@ -1,5 +1,8 @@
 .DS_Store
 *.zip
+!dist/.gitkeep
+dist/*
+!dist/.gitkeep
 node_modules/
 .idea/
 .vscode/

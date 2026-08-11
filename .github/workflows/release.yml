@@ -1,0 +1,50 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version from tag
+        id: meta
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify plugin version matches tag
+        run: |
+          HEADER="$(grep -E '^\s*\*\s*Version:' anhora/anhora.php | head -1 | sed -E 's/.*Version:[[:space:]]*//' | tr -d '[:space:]')"
+          STABLE="$(grep -E '^Stable tag:' anhora/readme.txt | head -1 | sed -E 's/^Stable tag:[[:space:]]*//' | tr -d '[:space:]')"
+          CONST="$(grep -E "define\(\s*'ANHORA_VERSION'" anhora/anhora.php | head -1 | sed -E "s/.*ANHORA_VERSION'[[:space:]]*,[[:space:]]*'([^']+)'.*/\1/")"
+          echo "header=${HEADER} stable=${STABLE} const=${CONST} tag=${{ steps.meta.outputs.version }}"
+          test "${HEADER}" = "${{ steps.meta.outputs.version }}"
+          test "${STABLE}" = "${{ steps.meta.outputs.version }}"
+          test "${CONST}" = "${{ steps.meta.outputs.version }}"
+
+      - name: Build zip
+        run: |
+          chmod +x scripts/build-zip.sh
+          scripts/build-zip.sh
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: Anhora WordPress ${{ steps.meta.outputs.version }}
+          generate_release_notes: true
+          files: dist/anhora-${{ steps.meta.outputs.version }}.zip
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
