@@ -1,0 +1,54 @@
+---
+description: Semver and GitHub Release process for the Anhora WordPress plugin
+alwaysApply: true
+---
+
+# Plugin versioning & releases
+
+This repo ships a WordPress plugin (`anhora/`) with independent semver from the Anhora monorepo.
+
+## Version sources (must stay identical)
+
+Bump **all three** together — never leave them out of sync:
+
+1. `anhora/anhora.php` header: `Version: x.y.z`
+2. `anhora/anhora.php` constant: `ANHORA_VERSION` (`'x.y.z'`)
+3. `anhora/readme.txt`: `Stable tag: x.y.z`
+
+Use semver: `MAJOR.MINOR.PATCH` (start from `0.1.0` until first stable wordpress.org release).
+
+## Do not
+
+- Change only one of the three version fields
+- Commit generated zips under `dist/` (except `dist/.gitkeep`)
+- Zip the whole git repo for distribution — only the `anhora/` plugin folder
+- Push a `v*` tag whose version does not match the three fields above (CI will fail)
+
+## Local zip
+
+```bash
+./scripts/build-zip.sh
+# → dist/anhora-{version}.zip  (root entry: anhora/)
+```
+
+## Publish
+
+1. Bump the three version fields and update `anhora/readme.txt` changelog if needed
+2. Commit on `main`
+3. Tag and push:
+
+```bash
+git tag vX.Y.Z
+git push origin main --tags
+```
+
+4. GitHub Actions (`.github/workflows/release.yml`) creates a Release with `anhora-X.Y.Z.zip`
+
+Stable download URL for merchants:  
+https://github.com/denys-vodniakov/anhora-wordpress/releases/latest
+
+If Actions are unavailable, create the Release manually with the zip from `./scripts/build-zip.sh`.
+
+## When editing related files
+
+Prefer applying this rule when touching: `anhora/anhora.php`, `anhora/readme.txt`, `scripts/build-zip.sh`, `.github/workflows/release.yml`, or preparing any release/tag.
