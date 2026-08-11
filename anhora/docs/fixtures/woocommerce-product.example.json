@@ -1,0 +1,41 @@
+{
+  "externalId": "woocommerce:42",
+  "name": "Omega-3 Softgels",
+  "product": {
+    "id": "42",
+    "family": { "id": "42", "name": "Omega-3 Softgels" },
+    "details": {
+      "shortDescription": "Daily omega-3 support",
+      "previewImageUrl": {
+        "fields": {
+          "title": "Omega-3 Softgels",
+          "file": {
+            "url": "https://example.com/wp-content/uploads/omega3.jpg",
+            "fileName": "omega3.jpg",
+            "contentType": "image/jpeg",
+            "details": {
+              "size": 0,
+              "image": { "width": 800, "height": 800 }
+            }
+          }
+        }
+      }
+    },
+    "variants": [
+      {
+        "id": "42",
+        "packaging": "Omega-3 Softgels",
+        "sku": "OMEGA-60",
+        "priceInfo": {
+          "prices": { "Retail": 29.9 },
+          "qualityValue": 0,
+          "commissionValue": 0,
+          "tax": 0,
+          "currency": "USD"
+        },
+        "availability": { "inStock": true, "quantity": 100 },
+        "details": { "shortDescription": "Daily omega-3 support" }
+      }
+    ]
+  }
+}
