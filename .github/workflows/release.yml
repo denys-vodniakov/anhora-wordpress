@@ -25,13 +25,17 @@ jobs:
 
       - name: Verify plugin version matches tag
         run: |
-          HEADER="$(grep -E '^\s*\*\s*Version:' anhora/anhora.php | head -1 | sed -E 's/.*Version:[[:space:]]*//' | tr -d '[:space:]')"
-          STABLE="$(grep -E '^Stable tag:' anhora/readme.txt | head -1 | sed -E 's/^Stable tag:[[:space:]]*//' | tr -d '[:space:]')"
-          CONST="$(grep -E "define\(\s*'ANHORA_VERSION'" anhora/anhora.php | head -1 | sed -E "s/.*ANHORA_VERSION'[[:space:]]*,[[:space:]]*'([^']+)'.*/\1/")"
+          HEADER="$(sed -nE 's/^[[:space:]]*\*[[:space:]]*Version:[[:space:]]*//p' anhora/anhora.php | head -1 | tr -d '[:space:]')"
+          STABLE="$(sed -nE 's/^Stable tag:[[:space:]]*//p' anhora/readme.txt | head -1 | tr -d '[:space:]')"
+          CONST="$(sed -nE "s/.*ANHORA_VERSION'[[:space:]]*,[[:space:]]*'([^']+)'.*/\1/p" anhora/anhora.php | head -1)"
           echo "header=${HEADER} stable=${STABLE} const=${CONST} tag=${{ steps.meta.outputs.version }}"
+          test -n "${HEADER}"
           test "${HEADER}" = "${{ steps.meta.outputs.version }}"
           test "${STABLE}" = "${{ steps.meta.outputs.version }}"
           test "${CONST}" = "${{ steps.meta.outputs.version }}"
+
+      - name: Install zip
+        run: sudo apt-get update && sudo apt-get install -y zip
 
       - name: Build zip
         run: |

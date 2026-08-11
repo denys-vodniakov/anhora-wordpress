@@ -12,9 +12,8 @@ if [[ ! -f "${PLUGIN_DIR}/anhora.php" ]]; then
 fi
 
 VERSION="$(
-  grep -E "^\s*\*\s*Version:" "${PLUGIN_DIR}/anhora.php" \
+  sed -nE 's/^[[:space:]]*\*[[:space:]]*Version:[[:space:]]*//p' "${PLUGIN_DIR}/anhora.php" \
     | head -1 \
-    | sed -E 's/.*Version:[[:space:]]*//' \
     | tr -d '[:space:]'
 )"
 
@@ -24,9 +23,8 @@ if [[ -z "${VERSION}" ]]; then
 fi
 
 STABLE="$(
-  grep -E "^Stable tag:" "${PLUGIN_DIR}/readme.txt" \
+  sed -nE 's/^Stable tag:[[:space:]]*//p' "${PLUGIN_DIR}/readme.txt" \
     | head -1 \
-    | sed -E 's/^Stable tag:[[:space:]]*//' \
     | tr -d '[:space:]'
 )"
 
@@ -36,9 +34,8 @@ if [[ -n "${STABLE}" && "${STABLE}" != "${VERSION}" ]]; then
 fi
 
 CONST="$(
-  grep -E "define\(\s*'ANHORA_VERSION'" "${PLUGIN_DIR}/anhora.php" \
-    | head -1 \
-    | sed -E "s/.*ANHORA_VERSION'[[:space:]]*,[[:space:]]*'([^']+)'.*/\1/"
+  sed -nE "s/.*ANHORA_VERSION'[[:space:]]*,[[:space:]]*'([^']+)'.*/\1/p" "${PLUGIN_DIR}/anhora.php" \
+    | head -1
 )"
 
 if [[ -n "${CONST}" && "${CONST}" != "${VERSION}" ]]; then
