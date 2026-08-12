@@ -12,7 +12,8 @@ defined( 'ABSPATH' ) || exit;
  */
 class Anhora_Woo_Shipping_Knowledge {
 
-	public const PREFIX = 'woocommerce:';
+	public const PREFIX    = 'woocommerce:';
+	public const NAMESPACE = 'woocommerce.operations';
 
 	/**
 	 * Hooks.
@@ -33,35 +34,49 @@ class Anhora_Woo_Shipping_Knowledge {
 	}
 
 	/**
-	 * Push shipping + payment knowledge with replace by prefix.
+	 * Reconcile shipping and payment knowledge in one atomic namespace snapshot.
 	 *
 	 * @return array{ok:bool,count?:int,error?:string}
 	 */
 	public static function sync(): array {
-		$settings = Anhora_Settings::get();
-		$items    = array_merge( self::shipping_items(), self::payment_items() );
-
-		$result = Anhora_Client::ingest(
-			array(
-				'widgetId'  => (string) $settings['widget_id'],
-				'knowledge' => $items,
-				'replace'   => array(
-					'knowledge'                 => true,
-					'knowledgeExternalIdPrefix' => self::PREFIX,
-				),
-			)
+		$knowledge = array_merge( self::shipping_items(), self::payment_items() );
+		$items     = array_map(
+			static function ( array $item ): array {
+				return array(
+					'externalId' => (string) $item['externalId'],
+					'payload'    => array(
+						'title'   => (string) $item['name'],
+						'content' => (string) $item['content'],
+					),
+				);
+			},
+			$knowledge
 		);
 
-		if ( ! $result['ok'] ) {
+		$begin = Anhora_Client::begin_snapshot( self::NAMESPACE, 'knowledge_document' );
+		if ( ! $begin['ok'] || empty( $begin['body']['runId'] ) ) {
 			return array(
 				'ok'    => false,
-				'error' => (string) ( $result['error'] ?? 'ingest failed' ),
+				'error' => (string) ( $begin['error'] ?? 'snapshot begin failed' ),
 			);
+		}
+		$run_id = (string) $begin['body']['runId'];
+		$pages  = $items ? 1 : 0;
+		if ( $items ) {
+			$page = Anhora_Client::snapshot_page( $run_id, 0, $items );
+			if ( ! $page['ok'] ) {
+				Anhora_Client::abort_snapshot( $run_id );
+				return array( 'ok' => false, 'error' => (string) ( $page['error'] ?? 'snapshot page failed' ) );
+			}
+		}
+		$result = Anhora_Client::commit_snapshot( $run_id, $pages );
+		if ( ! $result['ok'] ) {
+			return array( 'ok' => false, 'error' => (string) ( $result['error'] ?? 'snapshot commit failed' ) );
 		}
 
 		return array(
 			'ok'    => true,
-			'count' => count( $items ),
+			'count' => count( $knowledge ),
 		);
 	}
 

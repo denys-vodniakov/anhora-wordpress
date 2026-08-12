@@ -33,6 +33,7 @@ class Anhora_Settings {
 		return array(
 			'api_base'           => 'https://api.anhora.net/api',
 			'widget_id'          => '',
+			'installation_id'    => '',
 			'ingest_secret'      => '',
 			'deployment_key'     => '',
 			'loader_url'         => 'https://anhora.net/anhora-loader.js',
@@ -101,6 +102,7 @@ class Anhora_Settings {
 		$out = array(
 			'api_base'           => esc_url_raw( (string) ( $input['api_base'] ?? $current['api_base'] ) ),
 			'widget_id'          => sanitize_text_field( (string) ( $input['widget_id'] ?? '' ) ),
+			'installation_id'    => sanitize_text_field( (string) ( $input['installation_id'] ?? '' ) ),
 			'deployment_key'     => sanitize_text_field( (string) ( $input['deployment_key'] ?? '' ) ),
 			'loader_url'         => esc_url_raw( (string) ( $input['loader_url'] ?? $current['loader_url'] ) ),
 			'embed_enabled'      => empty( $input['embed_enabled'] ) ? 0 : 1,
@@ -154,6 +156,13 @@ class Anhora_Settings {
 					<tr>
 						<th scope="row"><label for="anhora_widget_id"><?php esc_html_e( 'Widget ID', 'anhora' ); ?></label></th>
 						<td><input name="<?php echo esc_attr( self::OPTION_KEY ); ?>[widget_id]" id="anhora_widget_id" type="text" class="regular-text" value="<?php echo esc_attr( (string) $settings['widget_id'] ); ?>" /></td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="anhora_installation_id"><?php esc_html_e( 'Integration ID', 'anhora' ); ?></label></th>
+						<td>
+							<input name="<?php echo esc_attr( self::OPTION_KEY ); ?>[installation_id]" id="anhora_installation_id" type="text" class="regular-text" value="<?php echo esc_attr( (string) $settings['installation_id'] ); ?>" />
+							<p class="description"><?php esc_html_e( 'Website content integration ID from Anhora Dashboard.', 'anhora' ); ?></p>
+						</td>
 					</tr>
 					<tr>
 						<th scope="row"><label for="anhora_ingest_secret"><?php esc_html_e( 'Ingest secret', 'anhora' ); ?></label></th>
@@ -270,12 +279,7 @@ class Anhora_Settings {
 		$result = Anhora_Woo_Catalog_Sync::sync_full();
 		Anhora_Woo_Shipping_Knowledge::sync();
 		$msg = $result['ok']
-			? sprintf(
-				/* translators: 1: catalog count, 2: batch count */
-				__( 'Catalog sync OK (%1$d products in %2$d batches). Shipping/payment knowledge refreshed.', 'anhora' ),
-				(int) ( $result['count'] ?? 0 ),
-				(int) ( $result['batches'] ?? 1 )
-			)
+			? __( 'Catalog snapshot queued in the background. Shipping/payment knowledge refreshed.', 'anhora' )
 			: sprintf(
 				/* translators: %s: error */
 				__( 'Catalog sync failed: %s', 'anhora' ),

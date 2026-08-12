@@ -1,47 +1,34 @@
 <?php
 /**
- * WooCommerce catalog → Anhora ingest.
+ * WooCommerce catalog delta events and background snapshots.
  *
  * @package Anhora
  */
 
 defined( 'ABSPATH' ) || exit;
 
-/**
- * On-save delta + nightly full replace (batched to avoid 413).
- */
 class Anhora_Woo_Catalog_Sync {
 
-	public const CRON_HOOK = 'anhora_cron_sync_catalog';
-
-	/**
-	 * Default products per ingest request.
-	 * Keep well under typical nginx/API body limits (~1MB).
-	 */
+	public const CRON_HOOK       = 'anhora_cron_sync_catalog';
+	public const PAGE_ACTION     = 'anhora_process_catalog_snapshot_page';
+	public const NAMESPACE       = 'woocommerce.catalog';
 	public const DEFAULT_BATCH_SIZE = 40;
 
-	/**
-	 * Hooks.
-	 */
 	public static function init(): void {
 		add_action( self::CRON_HOOK, array( __CLASS__, 'cron_sync' ) );
+		add_action( self::PAGE_ACTION, array( __CLASS__, 'process_snapshot_page' ), 10, 4 );
 		add_action( 'woocommerce_update_product', array( __CLASS__, 'on_product_save' ), 20, 1 );
 		add_action( 'woocommerce_new_product', array( __CLASS__, 'on_product_save' ), 20, 1 );
+		add_action( 'woocommerce_before_delete_product', array( __CLASS__, 'on_product_delete' ), 20, 1 );
 		self::schedule_cron();
 	}
 
-	/**
-	 * Schedule nightly full sync.
-	 */
 	public static function schedule_cron(): void {
 		if ( ! wp_next_scheduled( self::CRON_HOOK ) ) {
 			wp_schedule_event( time() + ( 2 * HOUR_IN_SECONDS ), 'daily', self::CRON_HOOK );
 		}
 	}
 
-	/**
-	 * Clear cron.
-	 */
 	public static function clear_cron(): void {
 		$timestamp = wp_next_scheduled( self::CRON_HOOK );
 		if ( $timestamp ) {
@@ -49,19 +36,11 @@ class Anhora_Woo_Catalog_Sync {
 		}
 	}
 
-	/**
-	 * Cron: full catalog + shipping knowledge.
-	 */
 	public static function cron_sync(): void {
 		self::sync_full();
 		Anhora_Woo_Shipping_Knowledge::sync();
 	}
 
-	/**
-	 * Delta upsert one product.
-	 *
-	 * @param int $product_id Product ID.
-	 */
 	public static function on_product_save( int $product_id ): void {
 		$settings = Anhora_Settings::get();
 		if ( empty( $settings['sync_on_save'] ) ) {
@@ -70,173 +49,143 @@ class Anhora_Woo_Catalog_Sync {
 		$product = wc_get_product( $product_id );
 		$item    = Anhora_Woo_Mapper::to_ingest_item( $product );
 		if ( ! $item ) {
+			self::on_product_delete( $product_id );
 			return;
 		}
-		Anhora_Client::ingest(
+		$modified = $product->get_date_modified();
+		$timestamp = $modified ? $modified->getTimestamp() : time();
+		Anhora_Client::events(
+			self::NAMESPACE,
 			array(
-				'widgetId' => (string) $settings['widget_id'],
-				'catalog'  => array( $item ),
+				array(
+					'eventId'        => 'woocommerce:product:' . $product_id . ':' . $timestamp,
+					'entityType'     => 'catalog_item',
+					'externalId'     => (string) $item['externalId'],
+					'operation'      => 'upsert',
+					'sourceSequence' => $timestamp,
+					'sourceUpdatedAt' => gmdate( 'Y-m-d\TH:i:s\Z', $timestamp ),
+					'payload'        => array(
+						'name'    => $item['name'],
+						'product' => $item['product'],
+					),
+				),
+			)
+		);
+	}
+
+	public static function on_product_delete( int $product_id ): void {
+		$timestamp = time();
+		Anhora_Client::events(
+			self::NAMESPACE,
+			array(
+				array(
+					'eventId'        => 'woocommerce:product:delete:' . $product_id . ':' . $timestamp,
+					'entityType'     => 'catalog_item',
+					'externalId'     => Anhora_Woo_Mapper::external_id( $product_id ),
+					'operation'      => 'delete',
+					'sourceSequence' => $timestamp,
+					'sourceUpdatedAt' => gmdate( 'Y-m-d\TH:i:s\Z', $timestamp ),
+				),
 			)
 		);
 	}
 
 	/**
-	 * Full catalog replace in batches.
+	 * Begin a background, resumable full snapshot.
 	 *
-	 * First batch sends replace.catalog=true (clears remote catalog), then
-	 * remaining batches upsert without replace so we do not wipe prior chunks.
-	 *
-	 * @return array{ok:bool,count?:int,batches?:int,error?:string}
+	 * @return array{ok:bool,queued?:bool,runId?:string,error?:string}
 	 */
 	public static function sync_full(): array {
-		$settings = Anhora_Settings::get();
-		$ids      = wc_get_products(
-			array(
-				'status' => 'publish',
-				'limit'  => -1,
-				'return' => 'ids',
-				'type'   => array( 'simple', 'variable', 'external', 'grouped' ),
+		$begin = Anhora_Client::begin_snapshot( self::NAMESPACE, 'catalog_item' );
+		if ( ! $begin['ok'] || empty( $begin['body']['runId'] ) ) {
+			return array( 'ok' => false, 'error' => self::error( $begin ) );
+		}
+		$run_id = (string) $begin['body']['runId'];
+		self::enqueue_page( $run_id, 0, 0, 0 );
+		return array( 'ok' => true, 'queued' => true, 'runId' => $run_id );
+	}
+
+	/**
+	 * Process one source page and schedule the next one.
+	 */
+	public static function process_snapshot_page( string $run_id, int $cursor_id, int $upload_page, int $count ): void {
+		global $wpdb;
+		$batch_size = max( 1, min( 500, (int) apply_filters( 'anhora_catalog_batch_size', self::DEFAULT_BATCH_SIZE ) ) );
+		$product_ids = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT ID FROM {$wpdb->posts} WHERE post_type = 'product' AND post_status = 'publish' AND ID > %d ORDER BY ID ASC LIMIT %d",
+				$cursor_id,
+				$batch_size
 			)
 		);
-
-		$items = array();
-		foreach ( $ids as $id ) {
-			$product = wc_get_product( $id );
-			// Skip pure variations as top-level; variable parent carries variants.
-			if ( $product && $product->is_type( 'variation' ) ) {
+		$products = $product_ids ? wc_get_products(
+			array(
+				'include' => array_map( 'intval', $product_ids ),
+				'limit'   => $batch_size,
+				'orderby' => 'ID',
+				'order'   => 'ASC',
+				'return'  => 'objects',
+			)
+		) : array();
+		$items     = array();
+		foreach ( $products as $product ) {
+			$item = Anhora_Woo_Mapper::to_ingest_item( $product );
+			if ( ! $item ) {
 				continue;
 			}
-			$item = Anhora_Woo_Mapper::to_ingest_item( $product );
-			if ( $item ) {
-				$items[] = $item;
-			}
-		}
-
-		/**
-		 * Filter catalog ingest batch size (products per request).
-		 *
-		 * @param int $batch_size Default batch size.
-		 */
-		$batch_size = (int) apply_filters( 'anhora_catalog_batch_size', self::DEFAULT_BATCH_SIZE );
-		if ( $batch_size < 1 ) {
-			$batch_size = 1;
-		}
-
-		if ( empty( $items ) ) {
-			// Still clear remote catalog when local shop is empty.
-			$result = Anhora_Client::ingest(
-				array(
-					'widgetId' => (string) $settings['widget_id'],
-					'catalog'  => array(),
-					'replace'  => array( 'catalog' => true ),
-				)
-			);
-			if ( ! $result['ok'] ) {
-				return array(
-					'ok'    => false,
-					'error' => self::format_ingest_error( $result ),
-				);
-			}
-			return array(
-				'ok'      => true,
-				'count'   => 0,
-				'batches' => 1,
+			$modified  = $product->get_date_modified();
+			$timestamp = $modified ? $modified->getTimestamp() : time();
+			$items[]   = array(
+				'externalId'     => (string) $item['externalId'],
+				'sourceSequence' => $timestamp,
+				'sourceUpdatedAt' => gmdate( 'Y-m-d\TH:i:s\Z', $timestamp ),
+				'payload'        => array(
+					'name'    => $item['name'],
+					'product' => $item['product'],
+				),
 			);
 		}
 
-		$chunks  = array_chunk( $items, $batch_size );
-		$batches = 0;
-
-		foreach ( $chunks as $index => $chunk ) {
-			$body = array(
-				'widgetId' => (string) $settings['widget_id'],
-				'catalog'  => $chunk,
-			);
-			// Only the first chunk replaces; later chunks upsert.
-			if ( 0 === $index ) {
-				$body['replace'] = array( 'catalog' => true );
+		if ( $items ) {
+			$uploaded = Anhora_Client::snapshot_page( $run_id, $upload_page, $items );
+			if ( ! $uploaded['ok'] ) {
+				throw new RuntimeException( self::error( $uploaded ) );
 			}
-
-			$result = self::ingest_chunk_with_413_retry( $body );
-			if ( ! $result['ok'] ) {
-				return array(
-					'ok'      => false,
-					'count'   => $index * $batch_size,
-					'batches' => $batches,
-					'error'   => sprintf(
-						/* translators: 1: batch number (1-based), 2: total batches, 3: error */
-						__( 'batch %1$d/%2$d failed: %3$s', 'anhora' ),
-						$index + 1,
-						count( $chunks ),
-						self::format_ingest_error( $result )
-					),
-				);
-			}
-			++$batches;
+			++$upload_page;
+			$count += count( $items );
 		}
 
-		return array(
-			'ok'      => true,
-			'count'   => count( $items ),
-			'batches' => $batches,
+		if ( count( $product_ids ) === $batch_size ) {
+			self::enqueue_page( $run_id, (int) end( $product_ids ), $upload_page, $count );
+			return;
+		}
+
+		$commit = Anhora_Client::commit_snapshot( $run_id, $upload_page );
+		if ( ! $commit['ok'] ) {
+			throw new RuntimeException( self::error( $commit ) );
+		}
+		update_option(
+			'anhora_last_catalog_sync',
+			array( 'runId' => $run_id, 'count' => $count, 'completedAt' => time() ),
+			false
 		);
 	}
 
-	/**
-	 * POST one chunk; on HTTP 413 split in half and retry.
-	 *
-	 * @param array<string,mixed> $body Ingest body with catalog array.
-	 * @return array{ok:bool,status:int,body?:mixed,error?:string}
-	 */
-	private static function ingest_chunk_with_413_retry( array $body ): array {
-		$result = Anhora_Client::ingest( $body );
-		if ( $result['ok'] ) {
-			return $result;
+	private static function enqueue_page( string $run_id, int $cursor_id, int $upload_page, int $count ): void {
+		$args = array( $run_id, $cursor_id, $upload_page, $count );
+		if ( function_exists( 'as_enqueue_async_action' ) ) {
+			as_enqueue_async_action( self::PAGE_ACTION, $args, 'anhora' );
+			return;
 		}
-
-		$status  = (int) ( $result['status'] ?? 0 );
-		$catalog = isset( $body['catalog'] ) && is_array( $body['catalog'] ) ? $body['catalog'] : array();
-		$count   = count( $catalog );
-
-		if ( 413 !== $status || $count <= 1 ) {
-			return $result;
-		}
-
-		$mid   = (int) ceil( $count / 2 );
-		$left  = array_slice( $catalog, 0, $mid );
-		$right = array_slice( $catalog, $mid );
-
-		$left_body            = $body;
-		$left_body['catalog'] = $left;
-		$left_result          = self::ingest_chunk_with_413_retry( $left_body );
-		if ( ! $left_result['ok'] ) {
-			return $left_result;
-		}
-
-		// After a successful left half that may have carried replace, right half must upsert only.
-		$right_body = array(
-			'widgetId' => $body['widgetId'],
-			'catalog'  => $right,
-		);
-		return self::ingest_chunk_with_413_retry( $right_body );
+		wp_schedule_single_event( time() + 5, self::PAGE_ACTION, $args );
 	}
 
-	/**
-	 * Human-readable ingest error (prefer API JSON message).
-	 *
-	 * @param array{ok?:bool,status?:int,body?:mixed,error?:string} $result Client result.
-	 */
-	private static function format_ingest_error( array $result ): string {
+	/** @param array<string,mixed> $result Result. */
+	private static function error( array $result ): string {
 		$body = $result['body'] ?? null;
 		if ( is_array( $body ) && ! empty( $body['message'] ) ) {
-			$status = (int) ( $result['status'] ?? 0 );
-			$msg    = is_string( $body['message'] ) ? $body['message'] : wp_json_encode( $body['message'] );
-			return $status ? sprintf( 'HTTP %d: %s', $status, $msg ) : $msg;
+			return is_string( $body['message'] ) ? $body['message'] : wp_json_encode( $body['message'] );
 		}
-		if ( ! empty( $result['error'] ) ) {
-			return (string) $result['error'];
-		}
-		$status = (int) ( $result['status'] ?? 0 );
-		return $status ? sprintf( 'HTTP %d', $status ) : 'ingest failed';
+		return (string) ( $result['error'] ?? 'Anhora request failed' );
 	}
 }

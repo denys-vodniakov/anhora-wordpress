@@ -23,7 +23,7 @@ HTTP ingest and Host Bridge shapes are documented in the Anhora monorepo:
 
 1. Copy or symlink the `anhora/` directory into `wp-content/plugins/anhora`.
 2. Activate **Anhora** in WP Admin → Plugins.
-3. Configure Settings → Anhora (API base, widget id, ingest secret, deployment key).
+3. Configure Settings → Anhora (API base, integration id, widget id, ingest secret, deployment key).
 
 ## Versioning & release
 
@@ -37,7 +37,7 @@ Build a WordPress-installable zip locally:
 
 ```bash
 ./scripts/build-zip.sh
-# → dist/anhora-0.1.0.zip
+# → dist/anhora-0.2.0.zip
 ```
 
 Publish:
@@ -45,7 +45,7 @@ Publish:
 ```bash
 # 1. bump the three version fields above
 # 2. commit on main
-git tag v0.1.0
+git tag v0.2.0
 git push origin main --tags
 ```
 
@@ -53,5 +53,9 @@ Pushing a `v*` tag runs GitHub Actions → creates a Release with `anhora-{versi
 
 ## Phases
 
-- **Phase 1:** embed + knowledge sync from selected pages/posts
-- **Phase 2:** WooCommerce catalog ingest, shipping/payment knowledge snapshot, Host Bridge
+- **Content:** save/delete delta events plus atomic selected-page reconciliation
+- **Commerce:** save/delete product events, background keyset snapshots, and Host Bridge
+
+Durable writes are scoped by the Anhora integration id. Full scans use one
+begin/page/commit generation; failed pages never replace the live source. The
+Widget ID remains specific to embed and session Host Bridge behavior.

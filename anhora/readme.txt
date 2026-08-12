@@ -4,7 +4,7 @@ Tags: chatbot, woocommerce, ai, customer-support, knowledge
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.1.1
+Stable tag: 0.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,7 +24,7 @@ Anhora does **not** process card payments in chat. Payment and checkout stay in 
 
 1. Upload the `anhora` folder to `/wp-content/plugins/`
 2. Activate the plugin through the Plugins menu
-3. Go to Settings → Anhora and enter API base, widget id, ingest secret, and deployment key from https://app.anhora.net
+3. Go to Settings → Anhora and enter API base, integration id, widget id, ingest secret, and deployment key from https://app.anhora.net
 4. Select knowledge pages and save
 5. Click “Sync knowledge now”
 
@@ -39,6 +39,12 @@ No. Phase 1 works on any WordPress site. WooCommerce features load automatically
 No. Order history is session-only via the Host Bridge for logged-in customers.
 
 == Changelog ==
+
+= 0.2.0 =
+* Universal V2 integration events with idempotent upserts and deletes
+* Atomic paged snapshots for WordPress knowledge and WooCommerce catalog
+* Background keyset catalog reconciliation via Action Scheduler or WP Cron
+* Integration-scoped ownership and bounded connector requests
 
 = 0.1.1 =
 * Batch WooCommerce catalog ingest (avoids HTTP 413 on large catalogs); retry/split on 413
