@@ -271,9 +271,10 @@ class Anhora_Settings {
 		Anhora_Woo_Shipping_Knowledge::sync();
 		$msg = $result['ok']
 			? sprintf(
-				/* translators: %d: catalog count */
-				__( 'Catalog sync OK (%d products). Shipping/payment knowledge refreshed.', 'anhora' ),
-				(int) ( $result['count'] ?? 0 )
+				/* translators: 1: catalog count, 2: batch count */
+				__( 'Catalog sync OK (%1$d products in %2$d batches). Shipping/payment knowledge refreshed.', 'anhora' ),
+				(int) ( $result['count'] ?? 0 ),
+				(int) ( $result['batches'] ?? 1 )
 			)
 			: sprintf(
 				/* translators: %s: error */

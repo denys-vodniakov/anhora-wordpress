@@ -4,7 +4,7 @@ Tags: chatbot, woocommerce, ai, customer-support, knowledge
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.1.0
+Stable tag: 0.1.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -39,6 +39,9 @@ No. Phase 1 works on any WordPress site. WooCommerce features load automatically
 No. Order history is session-only via the Host Bridge for logged-in customers.
 
 == Changelog ==
+
+= 0.1.1 =
+* Batch WooCommerce catalog ingest (avoids HTTP 413 on large catalogs); retry/split on 413
 
 = 0.1.0 =
 * Initial release: embed, knowledge sync, WooCommerce catalog + bridge + shipping/payment knowledge
