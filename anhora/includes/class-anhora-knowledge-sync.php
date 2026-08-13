@@ -204,6 +204,7 @@ class Anhora_Knowledge_Sync {
 
 	/** @param WP_Post $post Post. */
 	private static function plain_content( $post ): string {
+		// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WordPress core content filter.
 		$html = apply_filters( 'the_content', $post->post_content );
 		$text = wp_strip_all_tags( $html );
 		$text = preg_replace( "/[ \t]+/", ' ', $text );
