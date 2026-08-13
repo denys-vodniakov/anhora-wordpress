@@ -109,15 +109,8 @@ class Anhora_Woo_Catalog_Sync {
 	 * Process one source page and schedule the next one.
 	 */
 	public static function process_snapshot_page( string $run_id, int $cursor_id, int $upload_page, int $count ): void {
-		global $wpdb;
-		$batch_size = max( 1, min( 500, (int) apply_filters( 'anhora_catalog_batch_size', self::DEFAULT_BATCH_SIZE ) ) );
-		$product_ids = $wpdb->get_col(
-			$wpdb->prepare(
-				"SELECT ID FROM {$wpdb->posts} WHERE post_type = 'product' AND post_status = 'publish' AND ID > %d ORDER BY ID ASC LIMIT %d",
-				$cursor_id,
-				$batch_size
-			)
-		);
+		$batch_size  = max( 1, min( 500, (int) apply_filters( 'anhora_catalog_batch_size', self::DEFAULT_BATCH_SIZE ) ) );
+		$product_ids = self::next_product_ids( $cursor_id, $batch_size );
 		$products = $product_ids ? wc_get_products(
 			array(
 				'include' => array_map( 'intval', $product_ids ),
@@ -169,6 +162,39 @@ class Anhora_Woo_Catalog_Sync {
 			array( 'runId' => $run_id, 'count' => $count, 'completedAt' => time() ),
 			false
 		);
+	}
+
+	/**
+	 * Next published product IDs after a keyset cursor.
+	 *
+	 * @return int[]
+	 */
+	private static function next_product_ids( int $cursor_id, int $batch_size ): array {
+		$catalog_where = static function ( $where, $query ) use ( $cursor_id ) {
+			global $wpdb;
+			if ( empty( $query->query['anhora_catalog_keyset'] ) ) {
+				return $where;
+			}
+			return $where . $wpdb->prepare( " AND {$wpdb->posts}.ID > %d", $cursor_id );
+		};
+
+		add_filter( 'posts_where', $catalog_where, 10, 2 );
+		$product_ids = get_posts(
+			array(
+				'post_type'             => 'product',
+				'post_status'           => 'publish',
+				'posts_per_page'        => $batch_size,
+				'orderby'               => 'ID',
+				'order'                 => 'ASC',
+				'fields'                => 'ids',
+				'no_found_rows'         => true,
+				'suppress_filters'      => false,
+				'anhora_catalog_keyset' => true,
+			)
+		);
+		remove_filter( 'posts_where', $catalog_where, 10 );
+
+		return array_map( 'intval', $product_ids );
 	}
 
 	private static function enqueue_page( string $run_id, int $cursor_id, int $upload_page, int $count ): void {

@@ -49,11 +49,14 @@ ZIP_PATH="${DIST_DIR}/${ZIP_NAME}"
 rm -f "${ZIP_PATH}"
 
 # Zip from repo root so the archive root is the `anhora/` plugin folder.
+# Keep review/dev extras out of the WordPress.org zip.
 (
   cd "${ROOT}"
   zip -r "${ZIP_PATH}" anhora \
     -x "anhora/**/.DS_Store" \
-    -x "anhora/**/*.zip"
+    -x "anhora/**/*.zip" \
+    -x "anhora/docs/*" \
+    -x "anhora/docs/**"
 )
 
 echo "Built ${ZIP_PATH}"

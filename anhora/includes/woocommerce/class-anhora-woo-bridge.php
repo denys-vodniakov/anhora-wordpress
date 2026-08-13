@@ -21,17 +21,22 @@ class Anhora_Woo_Bridge {
 	}
 
 	/**
-	 * Inline add-to-cart base URL for host-bridge.js fallback.
+	 * Cart endpoints for host-bridge.js (Store API + fallback home URL).
 	 */
 	public static function add_cart_base(): void {
 		if ( ! wp_script_is( 'anhora-host-bridge', 'enqueued' ) ) {
 			return;
 		}
-		wp_add_inline_script(
-			'anhora-host-bridge',
-			'window.__ANHORA_ADD_TO_CART_BASE__ = ' . wp_json_encode( esc_url_raw( home_url( '/' ) ) ) . ';',
-			'before'
+
+		$cart = array(
+			'homeUrl' => esc_url_raw( home_url( '/' ) ),
 		);
+		if ( function_exists( 'rest_url' ) ) {
+			$cart['storeApiAddItem'] = esc_url_raw( rest_url( 'wc/store/v1/cart/add-item' ) );
+			$cart['storeApiNonce']   = wp_create_nonce( 'wc_store_api' );
+		}
+
+		wp_localize_script( 'anhora-host-bridge', 'anhoraCart', $cart );
 	}
 
 	/**

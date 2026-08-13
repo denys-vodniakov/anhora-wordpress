@@ -16,6 +16,8 @@ class Anhora_Plugin {
 	 * Wire hooks.
 	 */
 	public function init(): void {
+		load_plugin_textdomain( 'anhora', false, dirname( plugin_basename( ANHORA_PLUGIN_FILE ) ) . '/languages' );
+
 		Anhora_Settings::init();
 		Anhora_Embed::init();
 		Anhora_Knowledge_Sync::init();

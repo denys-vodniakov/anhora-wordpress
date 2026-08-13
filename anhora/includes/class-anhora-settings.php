@@ -13,6 +13,7 @@ defined( 'ABSPATH' ) || exit;
 class Anhora_Settings {
 
 	public const OPTION_KEY = 'anhora_settings';
+	public const NOTICE_KEY = 'anhora_admin_notice';
 
 	/**
 	 * Register hooks.
@@ -20,6 +21,7 @@ class Anhora_Settings {
 	public static function init(): void {
 		add_action( 'admin_menu', array( __CLASS__, 'register_menu' ) );
 		add_action( 'admin_init', array( __CLASS__, 'register_settings' ) );
+		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_admin' ) );
 		add_action( 'admin_post_anhora_sync_knowledge', array( __CLASS__, 'handle_sync_knowledge' ) );
 		add_action( 'admin_post_anhora_sync_catalog', array( __CLASS__, 'handle_sync_catalog' ) );
 	}
@@ -36,7 +38,7 @@ class Anhora_Settings {
 			'installation_id'    => '',
 			'ingest_secret'      => '',
 			'deployment_key'     => '',
-			'loader_url'         => 'https://anhora.net/anhora-loader.js',
+			'loader_url'         => 'https://anhora.net/' . 'anhora-loader.js',
 			'embed_enabled'      => 1,
 			'knowledge_page_ids' => array(),
 			'knowledge_geo_tag'  => '',
@@ -71,6 +73,24 @@ class Anhora_Settings {
 			'manage_options',
 			'anhora',
 			array( __CLASS__, 'render_page' )
+		);
+	}
+
+	/**
+	 * Settings-page styles.
+	 *
+	 * @param string $hook Current admin page.
+	 */
+	public static function enqueue_admin( string $hook ): void {
+		if ( 'settings_page_anhora' !== $hook ) {
+			return;
+		}
+
+		wp_enqueue_style(
+			'anhora-admin',
+			ANHORA_PLUGIN_URL . 'assets/css/admin.css',
+			array(),
+			ANHORA_VERSION
 		);
 	}
 
@@ -137,7 +157,7 @@ class Anhora_Settings {
 
 		$settings = self::get();
 		$pages    = get_pages( array( 'sort_column' => 'post_title' ) );
-		$notice   = isset( $_GET['anhora_notice'] ) ? sanitize_text_field( wp_unslash( $_GET['anhora_notice'] ) ) : '';
+		$notice   = self::consume_notice();
 		$woo      = class_exists( 'WooCommerce' );
 		?>
 		<div class="wrap">
@@ -145,6 +165,24 @@ class Anhora_Settings {
 			<?php if ( $notice ) : ?>
 				<div class="notice notice-info is-dismissible"><p><?php echo esc_html( $notice ); ?></p></div>
 			<?php endif; ?>
+
+			<p class="description anhora-privacy-note">
+				<?php
+				echo wp_kses(
+					sprintf(
+						/* translators: 1: privacy policy URL, 2: terms of use URL */
+						__( 'This plugin is a connector for the Anhora service. After you save API credentials, selected pages, catalog data, and (when the widget is enabled) logged-in customer session context are sent to Anhora. See the <a href="%1$s">Privacy Policy</a> and <a href="%2$s">Terms of Use</a>.', 'anhora' ),
+						esc_url( 'https://anhora.net/privacy' ),
+						esc_url( 'https://anhora.net/terms' )
+					),
+					array(
+						'a' => array(
+							'href' => true,
+						),
+					)
+				);
+				?>
+			</p>
 
 			<form method="post" action="options.php">
 				<?php settings_fields( 'anhora_settings_group' ); ?>
@@ -197,7 +235,7 @@ class Anhora_Settings {
 					<tr>
 						<th scope="row"><?php esc_html_e( 'Knowledge pages', 'anhora' ); ?></th>
 						<td>
-							<select name="<?php echo esc_attr( self::OPTION_KEY ); ?>[knowledge_page_ids][]" multiple size="12" style="min-width:320px">
+							<select name="<?php echo esc_attr( self::OPTION_KEY ); ?>[knowledge_page_ids][]" multiple size="12" class="anhora-settings-pages">
 								<?php foreach ( $pages as $page ) : ?>
 									<option value="<?php echo esc_attr( (string) $page->ID ); ?>" <?php selected( in_array( (int) $page->ID, array_map( 'intval', $settings['knowledge_page_ids'] ), true ) ); ?>>
 										<?php echo esc_html( $page->post_title ); ?>
@@ -213,13 +251,13 @@ class Anhora_Settings {
 
 			<hr />
 			<h2><?php esc_html_e( 'Manual sync', 'anhora' ); ?></h2>
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline-block;margin-right:12px">
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="anhora-sync-form">
 				<input type="hidden" name="action" value="anhora_sync_knowledge" />
 				<?php wp_nonce_field( 'anhora_sync_knowledge' ); ?>
 				<?php submit_button( __( 'Sync knowledge now', 'anhora' ), 'secondary', 'submit', false ); ?>
 			</form>
 			<?php if ( $woo ) : ?>
-				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline-block">
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="anhora-sync-form">
 					<input type="hidden" name="action" value="anhora_sync_catalog" />
 					<?php wp_nonce_field( 'anhora_sync_catalog' ); ?>
 					<?php submit_button( __( 'Full catalog + shipping knowledge sync', 'anhora' ), 'secondary', 'submit', false ); ?>
@@ -252,16 +290,7 @@ class Anhora_Settings {
 				__( 'Knowledge sync failed: %s', 'anhora' ),
 				(string) ( $result['error'] ?? 'unknown' )
 			);
-		wp_safe_redirect(
-			add_query_arg(
-				array(
-					'page'          => 'anhora',
-					'anhora_notice' => rawurlencode( $msg ),
-				),
-				admin_url( 'options-general.php' )
-			)
-		);
-		exit;
+		self::redirect_with_notice( $msg );
 	}
 
 	/**
@@ -273,8 +302,7 @@ class Anhora_Settings {
 		}
 		check_admin_referer( 'anhora_sync_catalog' );
 		if ( ! class_exists( 'Anhora_Woo_Catalog_Sync' ) ) {
-			wp_safe_redirect( admin_url( 'options-general.php?page=anhora' ) );
-			exit;
+			self::redirect_with_notice( '' );
 		}
 		$result = Anhora_Woo_Catalog_Sync::sync_full();
 		Anhora_Woo_Shipping_Knowledge::sync();
@@ -285,15 +313,30 @@ class Anhora_Settings {
 				__( 'Catalog sync failed: %s', 'anhora' ),
 				(string) ( $result['error'] ?? 'unknown' )
 			);
-		wp_safe_redirect(
-			add_query_arg(
-				array(
-					'page'          => 'anhora',
-					'anhora_notice' => rawurlencode( $msg ),
-				),
-				admin_url( 'options-general.php' )
-			)
-		);
+		self::redirect_with_notice( $msg );
+	}
+
+	/**
+	 * Store a one-time admin notice and return to the settings page.
+	 */
+	private static function redirect_with_notice( string $message ): void {
+		if ( '' !== $message ) {
+			set_transient( self::NOTICE_KEY . '_' . get_current_user_id(), $message, MINUTE_IN_SECONDS );
+		}
+		wp_safe_redirect( admin_url( 'options-general.php?page=anhora' ) );
 		exit;
+	}
+
+	/**
+	 * Read and clear the current user's sync notice.
+	 */
+	private static function consume_notice(): string {
+		$key     = self::NOTICE_KEY . '_' . get_current_user_id();
+		$notice  = get_transient( $key );
+		if ( false === $notice || ! is_string( $notice ) ) {
+			return '';
+		}
+		delete_transient( $key );
+		return $notice;
 	}
 }

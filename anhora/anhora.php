@@ -3,21 +3,23 @@
  * Plugin Name:       Anhora
  * Plugin URI:        https://anhora.net/integrate#wordpress
  * Description:       Embed the Anhora assistant, sync WordPress pages into knowledge, and connect WooCommerce catalog + session context.
- * Version:           0.2.0
+ * Version:           0.2.1
  * Requires at least: 6.0
+ * Tested up to:      7.0
  * Requires PHP:      7.4
  * Author:            Anhora
  * Author URI:        https://anhora.net
- * License:           GPL-2.0-or-later
+ * License:           GPLv2 or later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       anhora
+ * Domain Path:       /languages
  *
  * @package Anhora
  */
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'ANHORA_VERSION', '0.2.0' );
+define( 'ANHORA_VERSION', '0.2.1' );
 define( 'ANHORA_PLUGIN_FILE', __FILE__ );
 define( 'ANHORA_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ANHORA_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -56,9 +58,8 @@ register_activation_hook(
 register_deactivation_hook(
 	__FILE__,
 	static function () {
-		Anhora_Knowledge_Sync::clear_cron();
-		if ( class_exists( 'Anhora_Woo_Catalog_Sync' ) ) {
-			Anhora_Woo_Catalog_Sync::clear_cron();
-		}
+		wp_clear_scheduled_hook( 'anhora_cron_sync_knowledge' );
+		wp_clear_scheduled_hook( 'anhora_cron_sync_catalog' );
+		wp_clear_scheduled_hook( 'anhora_process_catalog_snapshot_page' );
 	}
 );

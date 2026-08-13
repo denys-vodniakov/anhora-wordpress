@@ -8,7 +8,7 @@
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Loads anhora-loader.js and emits page context.
+ * Loads a local injector for the Anhora SaaS widget and emits page context.
  */
 class Anhora_Embed {
 
@@ -20,7 +20,7 @@ class Anhora_Embed {
 	}
 
 	/**
-	 * Enqueue loader and bridge helpers.
+	 * Enqueue local injector, host bridge, and boot payload.
 	 */
 	public static function enqueue(): void {
 		if ( is_admin() ) {
@@ -32,36 +32,27 @@ class Anhora_Embed {
 			return;
 		}
 
-		$loader = (string) $settings['loader_url'];
+		$loader_url = self::loader_url( $settings );
+		if ( '' === $loader_url ) {
+			return;
+		}
+
 		wp_enqueue_script(
-			'anhora-loader',
-			$loader,
+			'anhora-embed-loader',
+			ANHORA_PLUGIN_URL . 'assets/js/embed-loader.js',
 			array(),
 			ANHORA_VERSION,
-			array(
-				'strategy'  => 'defer',
-				'in_footer' => true,
-			)
+			true
 		);
 
-		wp_script_add_data( 'anhora-loader', 'data-anhora-deployment-key', (string) $settings['deployment_key'] );
-
-		// data-* attributes via filter (WP core does not map add_data to HTML attrs reliably for all versions).
-		add_filter(
-			'script_loader_tag',
-			static function ( $tag, $handle ) use ( $settings ) {
-				if ( 'anhora-loader' !== $handle ) {
-					return $tag;
-				}
-				$attrs = sprintf(
-					' data-anhora-deployment-key="%s" data-anhora-api-base="%s" data-anhora-widget-channel="stable"',
-					esc_attr( (string) $settings['deployment_key'] ),
-					esc_attr( untrailingslashit( (string) $settings['api_base'] ) )
-				);
-				return str_replace( ' src=', $attrs . ' src=', $tag );
-			},
-			10,
-			2
+		wp_localize_script(
+			'anhora-embed-loader',
+			'anhoraEmbed',
+			array(
+				'loaderUrl'     => $loader_url,
+				'deploymentKey' => (string) $settings['deployment_key'],
+				'apiBase'       => untrailingslashit( (string) $settings['api_base'] ),
+			)
 		);
 
 		wp_enqueue_script(
@@ -94,14 +85,23 @@ class Anhora_Embed {
 	}
 
 	/**
+	 * Official or merchant-overridden SaaS loader URL.
+	 *
+	 * @param array<string,mixed> $settings Settings.
+	 */
+	private static function loader_url( array $settings ): string {
+		$custom = esc_url_raw( (string) $settings['loader_url'] );
+		if ( '' !== $custom ) {
+			return $custom;
+		}
+
+		return 'https://anhora.net/' . 'anhora-loader.js';
+	}
+
+	/**
 	 * Current request URL.
 	 */
 	private static function current_url(): string {
-		if ( empty( $_SERVER['HTTP_HOST'] ) ) {
-			return home_url( add_query_arg( array() ) );
-		}
-		$scheme = is_ssl() ? 'https' : 'http';
-		$uri    = isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '/';
-		return $scheme . '://' . wp_unslash( $_SERVER['HTTP_HOST'] ) . $uri;
+		return home_url( add_query_arg( array() ) );
 	}
 }

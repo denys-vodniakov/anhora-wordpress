@@ -11,6 +11,8 @@ Install via **Plugins → Add New → Upload Plugin**:
 **[Latest release zip](https://github.com/denys-vodniakov/anhora-wordpress/releases/latest)**  
 Asset name: `anhora-x.y.z.zip` (contains the `anhora/` plugin folder).
 
+After the plugin is listed on WordPress.org, install from **Plugins → Add New** by searching for Anhora. Keep this GitHub repo as the source; wordpress.org SVN is the public distribution.
+
 ## Contract
 
 HTTP ingest and Host Bridge shapes are documented in the Anhora monorepo:
@@ -37,19 +39,40 @@ Build a WordPress-installable zip locally:
 
 ```bash
 ./scripts/build-zip.sh
-# → dist/anhora-0.2.0.zip
+# → dist/anhora-0.2.1.zip
 ```
 
-Publish:
+Publish a GitHub Release:
 
 ```bash
 # 1. bump the three version fields above
 # 2. commit on main
-git tag v0.2.0
+git tag v0.2.1
 git push origin main --tags
 ```
 
 Pushing a `v*` tag runs GitHub Actions → creates a Release with `anhora-{version}.zip`.
+
+## WordPress.org directory
+
+Submit **`dist/anhora-x.y.z.zip`**, not a GitHub source zip (that includes `.github` / `.cursor` and fails Plugin Check).
+
+1. WordPress.org account with **2FA**. `readme.txt` `Contributors:` must be that username (currently `anhora`).
+2. Install [Plugin Check](https://wordpress.org/plugins/plugin-check/), run it on `anhora` with the **Plugin Repo** category, and fix any errors.
+3. Upload the zip at [Add plugin](https://wordpress.org/plugins/developers/add/).
+4. After approval, checkout SVN and put plugin files in `trunk/` (not `trunk/anhora/`):
+
+```bash
+svn co https://plugins.svn.wordpress.org/anhora svn-anhora
+rsync -a --delete anhora/ svn-anhora/trunk/
+svn add --force svn-anhora/trunk/*
+svn cp svn-anhora/trunk svn-anhora/tags/0.2.1
+svn ci -m "Tagging 0.2.1" --username YOUR_WPORG_USERNAME
+```
+
+Do not set `Stable tag: trunk`. Keep wordpress.org in sync with GitHub releases.
+
+Optional directory artwork (banners/icons/screenshots) goes in SVN `/assets/`, not inside the plugin zip. See [plugin assets](https://developer.wordpress.org/plugins/wordpress-org/plugin-assets/).
 
 ## Phases
 
