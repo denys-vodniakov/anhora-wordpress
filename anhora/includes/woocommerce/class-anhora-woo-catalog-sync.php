@@ -142,7 +142,7 @@ class Anhora_Woo_Catalog_Sync {
 		if ( $items ) {
 			$uploaded = Anhora_Client::snapshot_page( $run_id, $upload_page, $items );
 			if ( ! $uploaded['ok'] ) {
-				throw new RuntimeException( self::error( $uploaded ) );
+				throw new RuntimeException( esc_html( self::error( $uploaded ) ) );
 			}
 			++$upload_page;
 			$count += count( $items );
@@ -155,7 +155,7 @@ class Anhora_Woo_Catalog_Sync {
 
 		$commit = Anhora_Client::commit_snapshot( $run_id, $upload_page );
 		if ( ! $commit['ok'] ) {
-			throw new RuntimeException( self::error( $commit ) );
+			throw new RuntimeException( esc_html( self::error( $commit ) ) );
 		}
 		update_option(
 			'anhora_last_catalog_sync',
