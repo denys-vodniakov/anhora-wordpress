@@ -57,7 +57,7 @@ Pushing a `v*` tag runs GitHub Actions → creates a Release with `anhora-{versi
 
 Submit **`dist/anhora-x.y.z.zip`**, not a GitHub source zip (that includes `.github` / `.cursor` and fails Plugin Check).
 
-1. WordPress.org account with **2FA**. `readme.txt` `Contributors:` must be that username (currently `anhora`).
+1. WordPress.org account with **2FA**. `readme.txt` `Contributors:` must be that username (currently `denysvodniakov`).
 2. Install [Plugin Check](https://wordpress.org/plugins/plugin-check/), run it on `anhora` with the **Plugin Repo** category, and fix any errors.
 3. Upload the zip at [Add plugin](https://wordpress.org/plugins/developers/add/).
 4. After approval, checkout SVN and put plugin files in `trunk/` (not `trunk/anhora/`):
