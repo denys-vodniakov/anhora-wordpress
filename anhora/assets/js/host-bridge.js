@@ -13,6 +13,19 @@
     }
   }
 
+  function emitCartResult(requestId, ok, error) {
+    if (!requestId) {
+      return;
+    }
+    var detail = { requestId: requestId, ok: !!ok };
+    if (!ok && error) {
+      detail.error = error;
+    }
+    document.dispatchEvent(
+      new CustomEvent('anhora:addToCartResult', { detail: detail })
+    );
+  }
+
   function boot() {
     var data = window.__ANHORA_HOST_BOOT__ || {};
     if (data.page || data.user) {
@@ -52,6 +65,21 @@
     return /^\d+$/.test(id) ? id : '';
   }
 
+  function stockErrorFromBody(body) {
+    var blob = '';
+    if (!body) {
+      return false;
+    }
+    if (typeof body === 'string') {
+      blob = body;
+    } else {
+      blob = [body.code, body.error, body.message]
+        .filter(Boolean)
+        .join(' ');
+    }
+    return /out[_ ]of[_ ]stock|stock/i.test(blob);
+  }
+
   function notifyCartUpdated(fragments, cartHash) {
     document.body.dispatchEvent(
       new CustomEvent('wc-blocks_added_to_cart', { bubbles: true })
@@ -75,7 +103,7 @@
   function addViaStoreApi(id, qty) {
     var cfg = cartConfig();
     if (!cfg.storeApiAddItem || !window.fetch) {
-      return Promise.resolve(false);
+      return Promise.resolve({ skipped: true });
     }
     return window
       .fetch(cfg.storeApiAddItem, {
@@ -91,14 +119,24 @@
         }),
       })
       .then(function (response) {
-        if (!response.ok) {
-          return false;
+        if (response.ok) {
+          notifyCartUpdated();
+          return { ok: true };
         }
-        notifyCartUpdated();
-        return true;
+        return response
+          .json()
+          .then(function (body) {
+            return {
+              ok: false,
+              error: stockErrorFromBody(body) ? 'out_of_stock' : 'unavailable',
+            };
+          })
+          .catch(function () {
+            return { ok: false, error: 'unavailable' };
+          });
       })
       .catch(function () {
-        return false;
+        return { ok: false, error: 'unavailable' };
       });
   }
 
@@ -130,23 +168,26 @@
           })
           .done(function (response) {
             if (response && response.error) {
-              resolve(false);
+              resolve({
+                ok: false,
+                error: stockErrorFromBody(response) ? 'out_of_stock' : 'unavailable',
+              });
               return;
             }
             notifyCartUpdated(
               response && response.fragments,
               response && response.cart_hash
             );
-            resolve(true);
+            resolve({ ok: true });
           })
           .fail(function () {
-            resolve(false);
+            resolve({ ok: false, error: 'unavailable' });
           });
       });
     }
 
     if (!window.fetch) {
-      return Promise.resolve(false);
+      return Promise.resolve({ ok: false, error: 'unavailable' });
     }
 
     return window
@@ -158,53 +199,66 @@
       })
       .then(function (response) {
         if (!response.ok) {
-          return false;
+          return { ok: false, error: 'unavailable' };
         }
         notifyCartUpdated();
-        return true;
+        return { ok: true };
       })
       .catch(function () {
-        return false;
+        return { ok: false, error: 'unavailable' };
       });
-  }
-
-  function addViaRedirect(id, qty) {
-    var base = homeUrl();
-    var url =
-      base +
-      (base.indexOf('?') >= 0 ? '&' : '?') +
-      'add-to-cart=' +
-      encodeURIComponent(id) +
-      '&quantity=' +
-      encodeURIComponent(String(qty));
-    window.location.href = url;
   }
 
   function onAddToCart(event) {
     var detail = (event && event.detail) || {};
+    var requestId = typeof detail.requestId === 'string' ? detail.requestId : '';
     var id = normalizeProductId(
       detail.variationId || detail.variantId || detail.id || detail.productId
     );
     var parentId = normalizeProductId(detail.productId || detail.parentId);
     var qty = parseInt(detail.quantity, 10) || 1;
     if (!id) {
+      emitCartResult(requestId, false, 'invalid');
       return;
     }
 
-    addViaStoreApi(id, qty).then(function (ok) {
-      if (ok) {
+    addViaStoreApi(id, qty).then(function (result) {
+      if (result && result.ok) {
+        emitCartResult(requestId, true);
         return;
       }
-      return addViaClassicAjax(id, qty, parentId).then(function (classicOk) {
-        if (!classicOk) {
-          addViaRedirect(id, qty);
+      if (result && result.error === 'out_of_stock') {
+        emitCartResult(requestId, false, 'out_of_stock');
+        return;
+      }
+      if (result && result.skipped) {
+        return addViaClassicAjax(id, qty, parentId).then(function (classic) {
+          if (classic && classic.ok) {
+            emitCartResult(requestId, true);
+            return;
+          }
+          emitCartResult(
+            requestId,
+            false,
+            (classic && classic.error) || 'unavailable'
+          );
+        });
+      }
+      return addViaClassicAjax(id, qty, parentId).then(function (classic) {
+        if (classic && classic.ok) {
+          emitCartResult(requestId, true);
+          return;
         }
+        emitCartResult(
+          requestId,
+          false,
+          (classic && classic.error) || (result && result.error) || 'unavailable'
+        );
       });
     });
   }
 
   document.addEventListener('anhora:addToCart', onAddToCart);
-  document.addEventListener('addToCart', onAddToCart);
   document.addEventListener('anhora:ready', boot);
 
   if (document.readyState === 'loading') {
