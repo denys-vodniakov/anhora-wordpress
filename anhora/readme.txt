@@ -4,7 +4,7 @@ Tags: chatbot, woocommerce, ai, customer-support, knowledge
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.2.2
+Stable tag: 0.2.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -71,6 +71,9 @@ What is sent, and when:
 The ingest secret stays on your server and is sent only as an HTTP header to api.anhora.net. It is never printed in the storefront.
 
 == Changelog ==
+
+= 0.2.3 =
+* Host Bridge add-to-cart now replies with anhora:addToCartResult and no longer redirects on failure.
 
 = 0.2.2 =
 * Plugin Check: escape catalog sync errors, drop manual textdomain loading, prefix uninstall locals.
