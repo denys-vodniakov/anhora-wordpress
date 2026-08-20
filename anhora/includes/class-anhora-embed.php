@@ -64,6 +64,14 @@ class Anhora_Embed {
 		);
 
 		$bridge = array(
+			'adapter' => array(
+				'name'         => 'wordpress',
+				'version'      => ANHORA_VERSION,
+				'protocol'     => 1,
+				'capabilities' => class_exists( 'WooCommerce' )
+					? array( 'page_context', 'catalog_context', 'order_context' )
+					: array( 'page_context' ),
+			),
 			'page' => array(
 				'url'   => self::current_url(),
 				'title' => wp_get_document_title(),
