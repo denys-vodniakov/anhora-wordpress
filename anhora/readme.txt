@@ -4,7 +4,7 @@ Tags: chatbot, woocommerce, ai, customer-support, knowledge
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.2.4
+Stable tag: 0.2.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -72,8 +72,9 @@ The ingest secret stays on your server and is sent only as an HTTP header to api
 
 == Changelog ==
 
-= 0.2.4 =
+= 0.2.5 =
 * Advertise adapter version, host protocol, and supported capabilities to the remote widget runtime.
+* Advertise current-session WooCommerce order context without declaring it as an authenticated status action.
 * Report searchable WordPress content and WooCommerce catalog capabilities to Anhora after setup and before manual sync.
 
 = 0.2.3 =
