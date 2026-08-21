@@ -74,6 +74,7 @@ The ingest secret stays on your server and is sent only as an HTTP header to api
 
 = 0.2.4 =
 * Advertise adapter version, host protocol, and supported capabilities to the remote widget runtime.
+* Report searchable WordPress content and WooCommerce catalog capabilities to Anhora after setup and before manual sync.
 
 = 0.2.3 =
 * Host Bridge add-to-cart now replies with anhora:addToCartResult and no longer redirects on failure.
