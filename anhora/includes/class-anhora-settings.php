@@ -24,6 +24,24 @@ class Anhora_Settings {
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_admin' ) );
 		add_action( 'admin_post_anhora_sync_knowledge', array( __CLASS__, 'handle_sync_knowledge' ) );
 		add_action( 'admin_post_anhora_sync_catalog', array( __CLASS__, 'handle_sync_catalog' ) );
+		add_action( 'update_option_' . self::OPTION_KEY, array( __CLASS__, 'schedule_capability_report' ), 10, 2 );
+		add_action( 'anhora_report_capabilities', array( 'Anhora_Client', 'report_capabilities' ) );
+	}
+
+	/**
+	 * Report capabilities after the new credentials have been persisted.
+	 *
+	 * @param mixed $old_value Previous option value.
+	 * @param mixed $new_value New option value.
+	 */
+	public static function schedule_capability_report( $old_value, $new_value ): void {
+		unset( $old_value );
+		if ( ! is_array( $new_value ) || empty( $new_value['installation_id'] ) || empty( $new_value['ingest_secret'] ) ) {
+			return;
+		}
+		if ( ! wp_next_scheduled( 'anhora_report_capabilities' ) ) {
+			wp_schedule_single_event( time() + 5, 'anhora_report_capabilities' );
+		}
 	}
 
 	/**
@@ -278,6 +296,7 @@ class Anhora_Settings {
 			wp_die( esc_html__( 'Forbidden', 'anhora' ) );
 		}
 		check_admin_referer( 'anhora_sync_knowledge' );
+		Anhora_Client::report_capabilities();
 		$result = Anhora_Knowledge_Sync::sync_selected_pages( true );
 		$msg    = $result['ok']
 			? sprintf(
@@ -304,6 +323,7 @@ class Anhora_Settings {
 		if ( ! class_exists( 'Anhora_Woo_Catalog_Sync' ) ) {
 			self::redirect_with_notice( '' );
 		}
+		Anhora_Client::report_capabilities();
 		$result = Anhora_Woo_Catalog_Sync::sync_full();
 		Anhora_Woo_Shipping_Knowledge::sync();
 		$msg = $result['ok']

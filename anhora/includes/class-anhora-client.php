@@ -13,6 +13,29 @@ defined( 'ABSPATH' ) || exit;
 class Anhora_Client {
 
 	/**
+	 * Replace the installation capability manifest.
+	 *
+	 * @return array{ok:bool,status:int,body?:mixed,error?:string}
+	 */
+	public static function report_capabilities(): array {
+		$actions = array( 'content.search' );
+		if ( class_exists( 'WooCommerce' ) ) {
+			$actions[] = 'catalog.search';
+			$actions[] = 'catalog.recommend_related';
+			$actions[] = 'catalog.recommend_complementary';
+		}
+
+		return self::request(
+			'PUT',
+			'/capabilities',
+			array(
+				'schemaVersion' => 1,
+				'actions'       => $actions,
+			)
+		);
+	}
+
+	/**
 	 * Push an idempotent delta event batch.
 	 *
 	 * @param string                    $namespace Source-owned namespace.

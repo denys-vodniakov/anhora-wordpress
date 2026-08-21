@@ -82,3 +82,8 @@ Optional directory artwork (banners/icons/screenshots) goes in SVN `/assets/`, n
 Durable writes are scoped by the Anhora integration id. Full scans use one
 begin/page/commit generation; failed pages never replace the live source. The
 Widget ID remains specific to embed and session Host Bridge behavior.
+
+The plugin reports a versioned capability manifest after settings change and
+before manual sync. WordPress advertises `content.search`; WooCommerce adds the
+catalog search and recommendation reads. Order data exposed to the browser Host
+Bridge is not advertised as an authenticated status action.
