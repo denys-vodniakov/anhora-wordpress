@@ -244,6 +244,13 @@ class Anhora_Settings {
 						<td><label><input name="<?php echo esc_attr( self::OPTION_KEY ); ?>[embed_enabled]" type="checkbox" value="1" <?php checked( ! empty( $settings['embed_enabled'] ) ); ?> /> <?php esc_html_e( 'Load Anhora chat on the storefront', 'anhora' ); ?></label></td>
 					</tr>
 					<tr>
+						<th scope="row"><?php esc_html_e( 'Custom chat buttons', 'anhora' ); ?></th>
+						<td>
+							<p><code>[anhora_chat_button]</code></p>
+							<p class="description"><?php esc_html_e( 'The default label follows the page locale. Or add the CSS class anhora-chat-open, the data attribute data-anhora-chat-open, or the link #anhora-chat to an existing accessible button. Floating launcher visibility is configured in Anhora Dashboard.', 'anhora' ); ?></p>
+						</td>
+					</tr>
+					<tr>
 						<th scope="row"><?php esc_html_e( 'Sync on save', 'anhora' ); ?></th>
 						<td><label><input name="<?php echo esc_attr( self::OPTION_KEY ); ?>[sync_on_save]" type="checkbox" value="1" <?php checked( ! empty( $settings['sync_on_save'] ) ); ?> /> <?php esc_html_e( 'Push knowledge (and Woo catalog) when content is saved', 'anhora' ); ?></label></td>
 					</tr>

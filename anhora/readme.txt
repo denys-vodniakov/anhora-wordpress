@@ -4,7 +4,7 @@ Tags: chatbot, woocommerce, ai, customer-support, knowledge
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.2.6
+Stable tag: 0.3.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -19,6 +19,7 @@ An Anhora account is required. Create a project and copy credentials from https:
 Features:
 
 * Embed the Anhora chat widget after you save a deployment key
+* Open Commerce chat from any theme button or the [anhora_chat_button] shortcode
 * Sync selected pages (shipping, payment, FAQ, returns) into Anhora knowledge
 * When WooCommerce is active: catalog ingest, shipping/payment rule snapshots, and Host Bridge context for the current page, cart, signed-in customer, and recent orders
 
@@ -32,6 +33,10 @@ Anhora does not process card payments in chat. Payment and checkout stay in WooC
 4. Go to Settings → Anhora and enter API base, integration ID, widget ID, ingest secret, and deployment key
 5. Select knowledge pages and save
 6. Click "Sync knowledge now"
+
+== Custom chat buttons ==
+
+Commerce plans can hide the floating launcher in Anhora Dashboard and open chat from an existing WordPress button. Add the CSS class `anhora-chat-open`, the data attribute `data-anhora-chat-open`, or use `#anhora-chat` as the button link. The shortcode `[anhora_chat_button]` renders a ready-to-style button with automatic English, Russian, Ukrainian, Hebrew, German, French, Spanish, Italian, Polish, Dutch, or Portuguese text based on the WordPress locale. Override it with `text="Ask us"` or locale-specific attributes such as `text_en`, `text_de`, and `text_he`. Use `aria_label` for an icon-only visual treatment. It remains hidden until an entitled widget runtime is ready, so visitors never see a button that cannot open the chat.
 
 == Frequently Asked Questions ==
 
@@ -71,6 +76,11 @@ What is sent, and when:
 The ingest secret stays on your server and is sent only as an HTTP header to api.anhora.net. It is never printed in the storefront.
 
 == Changelog ==
+
+= 0.3.0 =
+* Add the `[anhora_chat_button]` shortcode and external trigger selectors for Commerce launcher customization.
+* Keep shortcode buttons hidden until the entitled chat runtime is ready.
+* Localize default button text and accessible labels from the page locale.
 
 = 0.2.6 =
 * Persist WooCommerce catalog snapshot progress so interrupted background jobs can resume from the last uploaded page.
