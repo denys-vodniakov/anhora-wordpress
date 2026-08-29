@@ -42,12 +42,16 @@ class Anhora_Woo_Shipping_Knowledge {
 		$knowledge = array_merge( self::shipping_items(), self::payment_items() );
 		$items     = array_map(
 			static function ( array $item ): array {
+				$payload = array(
+					'title'   => (string) $item['name'],
+					'content' => (string) $item['content'],
+				);
+				if ( isset( $item['storeOperation'] ) && is_array( $item['storeOperation'] ) ) {
+					$payload['storeOperation'] = $item['storeOperation'];
+				}
 				return array(
 					'externalId' => (string) $item['externalId'],
-					'payload'    => array(
-						'title'   => (string) $item['name'],
-						'content' => (string) $item['content'],
-					),
+					'payload'    => $payload,
 				);
 			},
 			$knowledge
@@ -114,22 +118,32 @@ class Anhora_Woo_Shipping_Knowledge {
 		$methods   = $zone->get_shipping_methods( true );
 
 		$location_labels = array();
+		$location_items  = array();
 		foreach ( $locations as $location ) {
 			$code = isset( $location->code ) ? (string) $location->code : '';
 			$type = isset( $location->type ) ? (string) $location->type : '';
 			if ( '' !== $code ) {
 				$location_labels[] = strtoupper( $type ) . ':' . $code;
+				$location_items[]  = array(
+					'type' => $type ? strtolower( $type ) : 'other',
+					'code' => $code,
+				);
 			}
 		}
 		$geo = $location_labels ? implode( ', ', $location_labels ) : 'OTHER';
 
 		$method_lines = array();
+		$method_items = array();
 		foreach ( $methods as $method ) {
 			if ( ! $method->is_enabled() ) {
 				continue;
 			}
 			$title = $method->get_title();
 			$method_lines[] = '- ' . $title . ' (' . $method->id . ')';
+			$method_items[] = array(
+				'id'    => (string) $method->id,
+				'title' => (string) $title,
+			);
 		}
 
 		$body  = 'Zone: ' . $name . "\n";
@@ -139,9 +153,25 @@ class Anhora_Woo_Shipping_Knowledge {
 		$body .= "\nAsk the customer for their country if unsure which zone applies. Do not invent delivery prices.";
 
 		return array(
-			'externalId' => self::PREFIX . 'shipping:zone:' . $zone_id,
-			'name'       => 'Shipping — ' . $name,
-			'content'    => $body,
+			'externalId'    => self::PREFIX . 'shipping:zone:' . $zone_id,
+			'name'          => 'Shipping — ' . $name,
+			'content'       => $body,
+			'storeOperation' => array(
+				'schemaVersion' => 1,
+				'kind'          => 'shipping_zone',
+				'zone'          => array(
+					'id'        => (string) $zone_id,
+					'title'     => (string) $name,
+					'locations' => $location_items ? $location_items : array(
+						array(
+							'type' => 'other',
+							'code' => 'OTHER',
+						),
+					),
+				),
+				'methods'       => $method_items,
+				'liveRates'     => false,
+			),
 		);
 	}
 
@@ -157,6 +187,7 @@ class Anhora_Woo_Shipping_Knowledge {
 
 		$gateways = WC()->payment_gateways()->payment_gateways();
 		$lines    = array();
+		$methods  = array();
 		foreach ( $gateways as $gateway ) {
 			if ( 'yes' !== $gateway->enabled ) {
 				continue;
@@ -164,6 +195,14 @@ class Anhora_Woo_Shipping_Knowledge {
 			$title = $gateway->get_title();
 			$desc  = wp_strip_all_tags( (string) $gateway->get_description() );
 			$lines[] = '- ' . $title . ( $desc ? ': ' . $desc : '' );
+			$method = array(
+				'id'    => (string) $gateway->id,
+				'title' => (string) $title,
+			);
+			if ( $desc ) {
+				$method['description'] = substr( $desc, 0, 2000 );
+			}
+			$methods[] = $method;
 		}
 
 		$body  = "Payment methods available at checkout (titles/steps only — Anhora never processes cards):\n";
@@ -172,9 +211,14 @@ class Anhora_Woo_Shipping_Knowledge {
 
 		return array(
 			array(
-				'externalId' => self::PREFIX . 'payment:methods',
-				'name'       => 'Payment methods',
-				'content'    => $body,
+				'externalId'    => self::PREFIX . 'payment:methods',
+				'name'          => 'Payment methods',
+				'content'       => $body,
+				'storeOperation' => array(
+					'schemaVersion' => 1,
+					'kind'          => 'payment_methods',
+					'methods'       => $methods,
+				),
 			),
 		);
 	}
