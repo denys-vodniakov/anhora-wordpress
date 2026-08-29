@@ -24,6 +24,7 @@ class Anhora_Settings {
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_admin' ) );
 		add_action( 'admin_post_anhora_sync_knowledge', array( __CLASS__, 'handle_sync_knowledge' ) );
 		add_action( 'admin_post_anhora_sync_catalog', array( __CLASS__, 'handle_sync_catalog' ) );
+		add_action( 'admin_post_anhora_restart_catalog', array( __CLASS__, 'handle_restart_catalog' ) );
 		add_action( 'update_option_' . self::OPTION_KEY, array( __CLASS__, 'schedule_capability_report' ), 10, 2 );
 		add_action( 'anhora_report_capabilities', array( 'Anhora_Client', 'report_capabilities' ) );
 	}
@@ -177,6 +178,9 @@ class Anhora_Settings {
 		$pages    = get_pages( array( 'sort_column' => 'post_title' ) );
 		$notice   = self::consume_notice();
 		$woo      = class_exists( 'WooCommerce' );
+		$catalog_state = $woo && class_exists( 'Anhora_Woo_Catalog_Sync' )
+			? Anhora_Woo_Catalog_Sync::state()
+			: array();
 		?>
 		<div class="wrap">
 			<h1><?php echo esc_html__( 'Anhora', 'anhora' ); ?></h1>
@@ -275,10 +279,44 @@ class Anhora_Settings {
 				<?php submit_button( __( 'Sync knowledge now', 'anhora' ), 'secondary', 'submit', false ); ?>
 			</form>
 			<?php if ( $woo ) : ?>
+				<?php if ( $catalog_state ) : ?>
+					<p>
+						<strong><?php esc_html_e( 'Catalog status:', 'anhora' ); ?></strong>
+						<?php
+						echo esc_html(
+							sprintf(
+								/* translators: 1: status, 2: product count, 3: uploaded page count */
+								__( '%1$s · %2$d products · %3$d pages', 'anhora' ),
+								(string) $catalog_state['status'],
+								(int) $catalog_state['count'],
+								(int) $catalog_state['uploadPage']
+							)
+						);
+						?>
+					</p>
+					<?php if ( ! empty( $catalog_state['lastError'] ) ) : ?>
+						<p class="description">
+							<?php
+							echo esc_html(
+								sprintf(
+									/* translators: %s: latest catalog sync error */
+									__( 'Last error: %s', 'anhora' ),
+									(string) $catalog_state['lastError']
+								)
+							);
+							?>
+						</p>
+					<?php endif; ?>
+				<?php endif; ?>
 				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="anhora-sync-form">
 					<input type="hidden" name="action" value="anhora_sync_catalog" />
 					<?php wp_nonce_field( 'anhora_sync_catalog' ); ?>
-					<?php submit_button( __( 'Full catalog + shipping knowledge sync', 'anhora' ), 'secondary', 'submit', false ); ?>
+					<?php submit_button( $catalog_state && 'completed' !== $catalog_state['status'] ? __( 'Resume catalog sync', 'anhora' ) : __( 'Full catalog + shipping knowledge sync', 'anhora' ), 'secondary', 'submit', false ); ?>
+				</form>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="anhora-sync-form">
+					<input type="hidden" name="action" value="anhora_restart_catalog" />
+					<?php wp_nonce_field( 'anhora_restart_catalog' ); ?>
+					<?php submit_button( __( 'Restart catalog from beginning', 'anhora' ), 'delete', 'submit', false ); ?>
 				</form>
 				<p class="description"><?php esc_html_e( 'WooCommerce detected: catalog ingest and Host Bridge are enabled.', 'anhora' ); ?></p>
 			<?php else : ?>
@@ -327,10 +365,35 @@ class Anhora_Settings {
 		$result = Anhora_Woo_Catalog_Sync::sync_full();
 		Anhora_Woo_Shipping_Knowledge::sync();
 		$msg = $result['ok']
-			? __( 'Catalog snapshot queued in the background. Shipping/payment knowledge refreshed.', 'anhora' )
+			? ( ! empty( $result['resumed'] )
+				? __( 'Catalog sync resumed from its last saved page. Shipping/payment knowledge refreshed.', 'anhora' )
+				: __( 'Catalog snapshot queued in the background. Shipping/payment knowledge refreshed.', 'anhora' ) )
 			: sprintf(
 				/* translators: %s: error */
 				__( 'Catalog sync failed: %s', 'anhora' ),
+				(string) ( $result['error'] ?? 'unknown' )
+			);
+		self::redirect_with_notice( $msg );
+	}
+
+	/**
+	 * Abort an incomplete Woo snapshot and start again from the first product.
+	 */
+	public static function handle_restart_catalog(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'Forbidden', 'anhora' ) );
+		}
+		check_admin_referer( 'anhora_restart_catalog' );
+		if ( ! class_exists( 'Anhora_Woo_Catalog_Sync' ) ) {
+			self::redirect_with_notice( '' );
+		}
+		Anhora_Client::report_capabilities();
+		$result = Anhora_Woo_Catalog_Sync::restart_full();
+		$msg    = $result['ok']
+			? __( 'The previous catalog snapshot was replaced and a full sync was queued from the beginning.', 'anhora' )
+			: sprintf(
+				/* translators: %s: error */
+				__( 'Catalog restart failed: %s', 'anhora' ),
 				(string) ( $result['error'] ?? 'unknown' )
 			);
 		self::redirect_with_notice( $msg );

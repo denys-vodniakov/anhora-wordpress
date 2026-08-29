@@ -4,7 +4,7 @@ Tags: chatbot, woocommerce, ai, customer-support, knowledge
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.2.5
+Stable tag: 0.2.6
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -71,6 +71,11 @@ What is sent, and when:
 The ingest secret stays on your server and is sent only as an HTTP header to api.anhora.net. It is never printed in the storefront.
 
 == Changelog ==
+
+= 0.2.6 =
+* Persist WooCommerce catalog snapshot progress so interrupted background jobs can resume from the last uploaded page.
+* Add bounded retries, a watchdog, and a worker lock for reliable catalog reconciliation.
+* Show catalog progress in Settings and provide separate resume and restart-from-beginning actions.
 
 = 0.2.5 =
 * Advertise adapter version, host protocol, and supported capabilities to the remote widget runtime.

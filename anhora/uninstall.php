@@ -9,6 +9,8 @@ defined( 'WP_UNINSTALL_PLUGIN' ) || exit;
 
 delete_option( 'anhora_settings' );
 delete_option( 'anhora_last_catalog_sync' );
+delete_option( 'anhora_catalog_sync_state' );
+delete_option( 'anhora_catalog_sync_lock' );
 
 $anhora_hooks = array( 'anhora_cron_sync_knowledge', 'anhora_cron_sync_catalog', 'anhora_process_catalog_snapshot_page' );
 foreach ( $anhora_hooks as $anhora_hook ) {

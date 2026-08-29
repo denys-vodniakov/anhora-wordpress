@@ -39,7 +39,7 @@ Build a WordPress-installable zip locally:
 
 ```bash
 ./scripts/build-zip.sh
-# → dist/anhora-0.2.5.zip
+# → dist/anhora-0.2.6.zip
 ```
 
 Publish a GitHub Release:
@@ -47,7 +47,7 @@ Publish a GitHub Release:
 ```bash
 # 1. bump the three version fields above
 # 2. commit on main
-git tag v0.2.5
+git tag v0.2.6
 git push origin main --tags
 ```
 
@@ -66,8 +66,8 @@ Submit **`dist/anhora-x.y.z.zip`**, not a GitHub source zip (that includes `.git
 svn co https://plugins.svn.wordpress.org/anhora svn-anhora
 rsync -a --delete anhora/ svn-anhora/trunk/
 svn add --force svn-anhora/trunk/*
-svn cp svn-anhora/trunk svn-anhora/tags/0.2.5
-svn ci -m "Tagging 0.2.5" --username YOUR_WPORG_USERNAME
+svn cp svn-anhora/trunk svn-anhora/tags/0.2.6
+svn ci -m "Tagging 0.2.6" --username YOUR_WPORG_USERNAME
 ```
 
 Do not set `Stable tag: trunk`. Keep wordpress.org in sync with GitHub releases.
@@ -82,6 +82,11 @@ Optional directory artwork (banners/icons/screenshots) goes in SVN `/assets/`, n
 Durable writes are scoped by the Anhora integration id. Full scans use one
 begin/page/commit generation; failed pages never replace the live source. The
 Widget ID remains specific to embed and session Host Bridge behavior.
+
+Catalog scans checkpoint the current keyset cursor and uploaded page after every
+successful batch. Transient failures retry with backoff, a watchdog recovers a
+worker that disappears between batches, and Settings → Anhora can either resume
+the saved run or abort it and restart from the beginning.
 
 The plugin reports a versioned capability manifest after settings change and
 before manual sync. WordPress advertises `content.search`; WooCommerce adds the
