@@ -39,7 +39,7 @@ Build a WordPress-installable zip locally:
 
 ```bash
 ./scripts/build-zip.sh
-# → dist/anhora-0.3.1.zip
+# → dist/anhora-0.4.0.zip
 ```
 
 Publish a GitHub Release:
