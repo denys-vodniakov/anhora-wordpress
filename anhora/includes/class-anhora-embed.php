@@ -160,9 +160,9 @@ class Anhora_Embed {
 				'name'         => 'wordpress',
 				'version'      => ANHORA_VERSION,
 				'protocol'     => 1,
-				'capabilities' => class_exists( 'WooCommerce' )
-					? array( 'page_context', 'catalog_context', 'order_context' )
-					: array( 'page_context' ),
+					'capabilities' => class_exists( 'WooCommerce' )
+						? array( 'page_context', 'catalog_context', 'order_context', 'logout_cleanup' )
+						: array( 'page_context', 'logout_cleanup' ),
 			),
 			'page' => array(
 				'url'   => self::current_url(),

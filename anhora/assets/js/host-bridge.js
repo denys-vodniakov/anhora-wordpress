@@ -5,11 +5,46 @@
  * Optional window.anhoraCart = { homeUrl, storeApiAddItem, storeApiNonce }
  */
 (function () {
+  var authBoundaryHandled = false;
+
   function emit(name, detail) {
     document.dispatchEvent(new CustomEvent(name, { detail: detail }));
     var legacy = name.replace(/^anhora:/, '');
     if (legacy !== name) {
       document.dispatchEvent(new CustomEvent(legacy, { detail: detail }));
+    }
+  }
+
+  function authMarkerKey() {
+    var deploymentKey =
+      window.anhoraEmbed && window.anhoraEmbed.deploymentKey
+        ? String(window.anhoraEmbed.deploymentKey)
+        : 'default';
+    return 'anhora_host_principal_' + deploymentKey;
+  }
+
+  function authPrincipal(data) {
+    return data.user && data.user.id
+      ? 'authenticated:' + String(data.user.id)
+      : 'guest';
+  }
+
+  function handleAuthBoundary(data) {
+    if (authBoundaryHandled) {
+      return;
+    }
+    authBoundaryHandled = true;
+
+    var current = authPrincipal(data);
+    try {
+      var key = authMarkerKey();
+      var previous = window.sessionStorage.getItem(key);
+      if (previous && previous !== current) {
+        emit('anhora:logout');
+      }
+      window.sessionStorage.setItem(key, current);
+    } catch (_error) {
+      // Private browsing can reject storage; runtime user events still protect SPAs.
     }
   }
 
@@ -26,17 +61,18 @@
     );
   }
 
-  function boot() {
+  function boot(event) {
     var data = window.__ANHORA_HOST_BOOT__ || {};
-    if (data.page || data.user) {
+    if (event && event.type === 'anhora:ready') {
+      handleAuthBoundary(data);
+    }
+    if (data.page || Object.prototype.hasOwnProperty.call(data, 'user')) {
       emit('anhora:updateContext', {
         page: data.page,
         user: data.user,
       });
     }
-    if (data.user) {
-      emit('anhora:updateUser', data.user);
-    }
+    emit('anhora:updateUser', data.user);
     if (data.products && data.products.length) {
       emit('anhora:updateCatalog', { products: data.products });
     }

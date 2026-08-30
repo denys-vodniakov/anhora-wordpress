@@ -39,7 +39,7 @@ Build a WordPress-installable zip locally:
 
 ```bash
 ./scripts/build-zip.sh
-# → dist/anhora-0.3.0.zip
+# → dist/anhora-0.3.1.zip
 ```
 
 Publish a GitHub Release:
@@ -47,7 +47,7 @@ Publish a GitHub Release:
 ```bash
 # 1. bump the three version fields above
 # 2. commit on main
-git tag v0.3.0
+git tag v0.3.1
 git push origin main --tags
 ```
 
@@ -66,8 +66,8 @@ Submit **`dist/anhora-x.y.z.zip`**, not a GitHub source zip (that includes `.git
 svn co https://plugins.svn.wordpress.org/anhora svn-anhora
 rsync -a --delete anhora/ svn-anhora/trunk/
 svn add --force svn-anhora/trunk/*
-svn cp svn-anhora/trunk svn-anhora/tags/0.3.0
-svn ci -m "Tagging 0.3.0" --username YOUR_WPORG_USERNAME
+svn cp svn-anhora/trunk svn-anhora/tags/0.3.1
+svn ci -m "Tagging 0.3.1" --username YOUR_WPORG_USERNAME
 ```
 
 Do not set `Stable tag: trunk`. Keep wordpress.org in sync with GitHub releases.
