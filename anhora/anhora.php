@@ -3,7 +3,7 @@
  * Plugin Name:       Anhora
  * Plugin URI:        https://anhora.net/integrate#wordpress
  * Description:       Embed the Anhora assistant, sync WordPress pages into knowledge, and connect WooCommerce catalog + session context.
- * Version:           0.3.1
+ * Version:           0.4.0
  * Requires at least: 6.0
  * Tested up to:      7.0
  * Requires PHP:      7.4
@@ -19,7 +19,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'ANHORA_VERSION', '0.3.1' );
+define( 'ANHORA_VERSION', '0.4.0' );
 define( 'ANHORA_PLUGIN_FILE', __FILE__ );
 define( 'ANHORA_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ANHORA_PLUGIN_URL', plugin_dir_url( __FILE__ ) );

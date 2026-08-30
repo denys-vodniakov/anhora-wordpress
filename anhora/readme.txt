@@ -4,7 +4,7 @@ Tags: chatbot, woocommerce, ai, customer-support, knowledge
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.3.1
+Stable tag: 0.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -70,12 +70,16 @@ Privacy Policy: https://anhora.net/privacy
 What is sent, and when:
 
 * **Knowledge sync** (when you save selected pages, click "Sync knowledge now", or the daily cron runs): page title, URL, and plain-text content of the selected published pages, plus an optional geo tag you configure.
-* **WooCommerce catalog sync** (when WooCommerce is active and sync-on-save or a full catalog sync runs): product names, descriptions, SKUs, prices, stock flags, image URLs, and shipping/payment method titles. Card numbers and payment credentials are never sent.
+* **WooCommerce catalog sync** (when WooCommerce is active and sync-on-save or a full catalog sync runs): product names, descriptions, categories, tags, product types, public attributes, featured/sales/rating metadata, SKUs, prices, stock flags, image URLs, and shipping/payment method titles. Card numbers and payment credentials are never sent.
 * **Chat widget** (only if Embed widget is enabled and a deployment key is saved): the browser loads the Anhora widget script from anhora.net. The local Host Bridge may pass the current page URL/title, visible products, and, for a signed-in customer, name, email, country, and recent order summaries to the widget for that session.
 
 The ingest secret stays on your server and is sent only as an HTTP header to api.anhora.net. It is never printed in the storefront.
 
 == Changelog ==
+
+= 0.4.0 =
+* Sync normalized WooCommerce categories, tags, product types, public attributes, and merchandising signals for more precise catalog search and palettes.
+* Preserve the existing product-card contract while adding optional discovery metadata.
 
 = 0.3.1 =
 * Clear the previous chat identity and transcript when a WooCommerce customer logs out or switches accounts.

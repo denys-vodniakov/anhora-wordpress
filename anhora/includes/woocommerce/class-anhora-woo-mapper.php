@@ -71,12 +71,83 @@ class Anhora_Woo_Mapper {
 				'previewImageUrl'  => $img,
 			),
 			'variants' => $variants,
+			'catalog'  => self::catalog_metadata( $product ),
 		);
 
 		return array(
 			'externalId' => self::external_id( (int) $product->get_id() ),
 			'name'       => $name,
 			'product'    => $anhora_product,
+		);
+	}
+
+	/**
+	 * Normalized discovery metadata used by category and attribute search.
+	 *
+	 * @param WC_Product $product Product.
+	 * @return array<string,mixed>
+	 */
+	private static function catalog_metadata( $product ): array {
+		$categories = wp_get_post_terms(
+			$product->get_id(),
+			'product_cat',
+			array( 'fields' => 'all' )
+		);
+		$tags = wp_get_post_terms(
+			$product->get_id(),
+			'product_tag',
+			array( 'fields' => 'names' )
+		);
+		$category_names = array();
+		$category_ids   = array();
+		if ( ! is_wp_error( $categories ) ) {
+			foreach ( $categories as $category ) {
+				$category_names[] = (string) $category->name;
+				$category_ids[]   = (string) $category->term_id;
+			}
+		}
+
+		$attributes = array();
+		foreach ( $product->get_attributes() as $attribute ) {
+			$name = wc_attribute_label( $attribute->get_name(), $product );
+			if ( ! $name ) {
+				continue;
+			}
+			if ( $attribute->is_taxonomy() ) {
+				$values = wc_get_product_terms(
+					$product->get_id(),
+					$attribute->get_name(),
+					array( 'fields' => 'names' )
+				);
+			} else {
+				$values = $attribute->get_options();
+			}
+			if ( ! is_wp_error( $values ) ) {
+				$clean = array_values(
+					array_filter(
+						array_map( 'strval', (array) $values ),
+						static fn( string $value ): bool => '' !== trim( $value )
+					)
+				);
+				if ( $clean ) {
+					$attributes[ (string) $name ] = $clean;
+				}
+			}
+		}
+
+		return array(
+			'categories'    => array_values( array_unique( $category_names ) ),
+			'categoryIds'   => array_values( array_unique( $category_ids ) ),
+			'tags'          => is_wp_error( $tags ) ? array() : array_values( array_unique( array_map( 'strval', $tags ) ) ),
+			'productType'   => (string) $product->get_type(),
+			'attributes'    => $attributes,
+			'merchandising' => array(
+				'featured'     => (bool) $product->is_featured(),
+				'totalSales'   => (int) $product->get_total_sales(),
+				'averageRating' => (float) $product->get_average_rating(),
+				'reviewCount'  => (int) $product->get_review_count(),
+				'menuOrder'    => (int) $product->get_menu_order(),
+			),
 		);
 	}
 
