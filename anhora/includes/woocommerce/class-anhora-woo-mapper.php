@@ -43,8 +43,9 @@ class Anhora_Woo_Mapper {
 
 		$id   = (string) $product->get_id();
 		$name = $product->get_name();
-		$desc = wp_strip_all_tags( $product->get_short_description() ?: $product->get_description() );
+		$desc = self::description_text( $product );
 		$img  = self::preview_image( $product );
+		$url  = $product->get_permalink();
 
 		$variants = array();
 		if ( $product->is_type( 'variable' ) ) {
@@ -73,6 +74,9 @@ class Anhora_Woo_Mapper {
 			'variants' => $variants,
 			'catalog'  => self::catalog_metadata( $product ),
 		);
+		if ( $url ) {
+			$anhora_product['url'] = esc_url_raw( (string) $url );
+		}
 
 		return array(
 			'externalId' => self::external_id( (int) $product->get_id() ),
@@ -187,9 +191,54 @@ class Anhora_Woo_Mapper {
 				'quantity' => (int) $product->get_stock_quantity(),
 			),
 			'details'      => array(
-				'shortDescription' => wp_strip_all_tags( $product->get_short_description() ?: $fallback_name ),
+				'shortDescription' => self::description_text( $product, $fallback_name ),
 			),
 		);
+	}
+
+	/**
+	 * Keep every customer-visible WooCommerce description in the catalog
+	 * contract. Stores commonly use the short description for a specification
+	 * table and the full description for searchable product characteristics.
+	 *
+	 * @param WC_Product $product      Product or variation.
+	 * @param string     $fallback_text Text used only when both descriptions are empty.
+	 */
+	private static function description_text( $product, string $fallback_text = '' ): string {
+		$parts = array();
+		foreach ( array( $product->get_short_description(), $product->get_description() ) as $value ) {
+			$clean = self::clean_text( $value );
+			if ( '' !== $clean && ! in_array( $clean, $parts, true ) ) {
+				$parts[] = $clean;
+			}
+		}
+
+		if ( ! $parts && '' !== trim( $fallback_text ) ) {
+			$parts[] = self::clean_text( $fallback_text );
+		}
+
+		return implode( "\n\n", $parts );
+	}
+
+	/**
+	 * Convert WooCommerce HTML into stable multilingual search text.
+	 *
+	 * @param mixed $value HTML or plain text.
+	 */
+	private static function clean_text( $value ): string {
+		$source = (string) $value;
+		$source = preg_replace( '/<br\b[^>]*>/iu', "\n", $source ) ?? $source;
+		$source = preg_replace( '/<\/(?:p|div|li|tr|td|th|h[1-6])\s*>/iu', "\n", $source ) ?? $source;
+		$clean = html_entity_decode(
+			wp_strip_all_tags( $source ),
+			ENT_QUOTES | ENT_HTML5,
+			'UTF-8'
+		);
+		$clean = str_replace( array( "\r\n", "\r", "\xc2\xa0" ), array( "\n", "\n", ' ' ), $clean );
+		$clean = preg_replace( '/[ \t]+/u', ' ', $clean ) ?? $clean;
+		$clean = preg_replace( '/ *\n */u', "\n", $clean ) ?? $clean;
+		$clean = preg_replace( '/\n{3,}/u', "\n\n", $clean ) ?? $clean;
+		return trim( $clean );
 	}
 
 	/**
