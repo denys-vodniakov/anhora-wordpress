@@ -50,12 +50,15 @@ class Anhora_Woo_Mapper {
 		$variants = array();
 		if ( $product->is_type( 'variable' ) ) {
 			/** @var WC_Product_Variable $product */
-			foreach ( $product->get_available_variations() as $variation_data ) {
-				$variation = wc_get_product( $variation_data['variation_id'] );
-				if ( ! $variation ) {
+			foreach ( $product->get_children() as $variation_id ) {
+				$variation = wc_get_product( $variation_id );
+				if ( ! $variation || 'publish' !== $variation->get_status() ) {
 					continue;
 				}
 				$variants[] = self::map_variant( $variation, $name );
+			}
+			if ( ! $variants ) {
+				return null;
 			}
 		} else {
 			$variants[] = self::map_variant( $product, $name );
@@ -106,14 +109,17 @@ class Anhora_Woo_Mapper {
 		$category_ids   = array();
 		if ( ! is_wp_error( $categories ) ) {
 			foreach ( $categories as $category ) {
-				$category_names[] = (string) $category->name;
+				$category_name = self::clean_text( $category->name );
+				if ( '' !== $category_name ) {
+					$category_names[] = $category_name;
+				}
 				$category_ids[]   = (string) $category->term_id;
 			}
 		}
 
 		$attributes = array();
 		foreach ( $product->get_attributes() as $attribute ) {
-			$name = wc_attribute_label( $attribute->get_name(), $product );
+			$name = self::clean_text( wc_attribute_label( $attribute->get_name(), $product ) );
 			if ( ! $name ) {
 				continue;
 			}
@@ -129,7 +135,10 @@ class Anhora_Woo_Mapper {
 			if ( ! is_wp_error( $values ) ) {
 				$clean = array_values(
 					array_filter(
-						array_map( 'strval', (array) $values ),
+						array_map(
+							static fn( $value ): string => self::clean_text( $value ),
+							(array) $values
+						),
 						static fn( string $value ): bool => '' !== trim( $value )
 					)
 				);
@@ -142,7 +151,16 @@ class Anhora_Woo_Mapper {
 		return array(
 			'categories'    => array_values( array_unique( $category_names ) ),
 			'categoryIds'   => array_values( array_unique( $category_ids ) ),
-			'tags'          => is_wp_error( $tags ) ? array() : array_values( array_unique( array_map( 'strval', $tags ) ) ),
+			'tags'          => is_wp_error( $tags ) ? array() : array_values(
+				array_unique(
+					array_filter(
+						array_map(
+							static fn( $value ): string => self::clean_text( $value ),
+							$tags
+						)
+					)
+				)
+			),
 			'productType'   => (string) $product->get_type(),
 			'attributes'    => $attributes,
 			'merchandising' => array(

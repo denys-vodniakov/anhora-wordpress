@@ -15,6 +15,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+          coverage: none
+
+      - name: Lint plugin PHP
+        run: find anhora -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Run connector contract tests
+        run: node --test tests/*.test.js
+
       - name: Resolve version from tag
         id: meta
         run: |

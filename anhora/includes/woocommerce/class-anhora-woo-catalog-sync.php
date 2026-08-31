@@ -11,9 +11,13 @@ class Anhora_Woo_Catalog_Sync {
 
 	public const CRON_HOOK          = 'anhora_cron_sync_catalog';
 	public const PAGE_ACTION        = 'anhora_process_catalog_snapshot_page';
+	public const UPGRADE_HOOK       = 'anhora_upgrade_sync_catalog';
 	public const NAMESPACE          = 'woocommerce.catalog';
 	public const STATE_OPTION       = 'anhora_catalog_sync_state';
 	public const LOCK_OPTION        = 'anhora_catalog_sync_lock';
+	public const CONTRACT_OPTION    = 'anhora_catalog_contract_version';
+	public const PENDING_OPTION     = 'anhora_catalog_contract_pending';
+	public const CONTRACT_VERSION   = 2;
 	public const DEFAULT_BATCH_SIZE = 40;
 	public const MAX_RETRIES        = 5;
 	public const LOCK_TTL           = 300;
@@ -22,10 +26,12 @@ class Anhora_Woo_Catalog_Sync {
 	public static function init(): void {
 		add_action( self::CRON_HOOK, array( __CLASS__, 'cron_sync' ) );
 		add_action( self::PAGE_ACTION, array( __CLASS__, 'process_snapshot_page' ), 10, 5 );
+		add_action( self::UPGRADE_HOOK, array( __CLASS__, 'sync_contract_upgrade' ) );
 		add_action( 'woocommerce_update_product', array( __CLASS__, 'on_product_save' ), 20, 1 );
 		add_action( 'woocommerce_new_product', array( __CLASS__, 'on_product_save' ), 20, 1 );
 		add_action( 'woocommerce_before_delete_product', array( __CLASS__, 'on_product_delete' ), 20, 1 );
 		self::schedule_cron();
+		self::schedule_contract_upgrade();
 	}
 
 	public static function schedule_cron(): void {
@@ -46,10 +52,47 @@ class Anhora_Woo_Catalog_Sync {
 	 */
 	public static function clear_page_actions(): void {
 		wp_clear_scheduled_hook( self::PAGE_ACTION );
+		wp_clear_scheduled_hook( self::UPGRADE_HOOK );
 		if ( function_exists( 'as_unschedule_all_actions' ) ) {
 			as_unschedule_all_actions( self::PAGE_ACTION, null, 'anhora' );
 		}
 		delete_option( self::LOCK_OPTION );
+		delete_option( self::PENDING_OPTION );
+	}
+
+	/**
+	 * Queue one full snapshot when the normalized catalog contract changes.
+	 */
+	public static function schedule_contract_upgrade(): void {
+		if ( (int) get_option( self::CONTRACT_OPTION, 0 ) >= self::CONTRACT_VERSION ) {
+			return;
+		}
+		$settings = Anhora_Settings::get();
+		if ( empty( $settings['installation_id'] ) || empty( $settings['ingest_secret'] ) ) {
+			return;
+		}
+		if (
+			(int) get_option( self::PENDING_OPTION, 0 ) >= self::CONTRACT_VERSION ||
+			wp_next_scheduled( self::UPGRADE_HOOK )
+		) {
+			return;
+		}
+		update_option( self::PENDING_OPTION, self::CONTRACT_VERSION, false );
+		wp_schedule_single_event( time() + MINUTE_IN_SECONDS, self::UPGRADE_HOOK );
+	}
+
+	/**
+	 * Start or resume the outbound-only snapshot queued for a contract upgrade.
+	 */
+	public static function sync_contract_upgrade(): void {
+		if ( (int) get_option( self::CONTRACT_OPTION, 0 ) >= self::CONTRACT_VERSION ) {
+			delete_option( self::PENDING_OPTION );
+			return;
+		}
+		$result = self::sync_full();
+		if ( empty( $result['ok'] ) && ! wp_next_scheduled( self::UPGRADE_HOOK ) ) {
+			wp_schedule_single_event( time() + HOUR_IN_SECONDS, self::UPGRADE_HOOK );
+		}
 	}
 
 	public static function cron_sync(): void {
@@ -228,6 +271,9 @@ class Anhora_Woo_Catalog_Sync {
 			'updatedAt'   => time(),
 			'completedAt' => 0,
 		);
+		if ( (int) get_option( self::CONTRACT_OPTION, 0 ) < self::CONTRACT_VERSION ) {
+			update_option( self::PENDING_OPTION, self::CONTRACT_VERSION, false );
+		}
 		self::schedule_watchdog( $run_id, 0, 0, 0, 0 );
 		self::save_state( $state );
 		self::enqueue_page( $run_id, 0, 0, 0, 0 );
@@ -352,6 +398,9 @@ class Anhora_Woo_Catalog_Sync {
 				array( 'runId' => $run_id, 'count' => $count, 'completedAt' => $completed_at ),
 				false
 			);
+			update_option( self::CONTRACT_OPTION, self::CONTRACT_VERSION, false );
+			delete_option( self::PENDING_OPTION );
+			wp_clear_scheduled_hook( self::UPGRADE_HOOK );
 		} catch ( Throwable $error ) {
 			self::retry_or_fail( $run_id, $cursor_id, (int) $state['uploadPage'], (int) $state['count'], $attempt, $error->getMessage() );
 		} finally {
